@@ -1,0 +1,4 @@
+gradio==6.13.0
+numpy>=1.26
+soundfile>=0.12
+voxcpm @ git+https://github.com/OpenBMB/VoxCPM.git

@@ -56,19 +56,71 @@ cp .env.example .env.local
 
 ```bash
 HF_VOXCPM2_URL=https://openbmb-voxcpm-demo.hf.space
+HF_TOKEN=
 HF_REQUEST_TIMEOUT=60000
-HF_INFERENCE_TIMEOUT=300000
+HF_INFERENCE_TIMEOUT=900000
+VOXCPM_MAX_TEXT_CHARACTERS=220
 GEMINI_REQUEST_TIMEOUT=60000
 GEMINI_API_KEY=your_google_gemini_api_key_here
 ```
 
 - `HF_VOXCPM2_URL`: VoxCPM2 Hugging Face Space ၏ base URL
+- `HF_TOKEN`: Private Hugging Face Space ကို သုံးပါက ထည့်ရန် Hugging Face read token
 - `HF_REQUEST_TIMEOUT`: Hugging Face request timeout milliseconds
 - `HF_INFERENCE_TIMEOUT`: VoxCPM2 audio segment တစ်ခု generate လုပ်ရန် စောင့်မည့် အများဆုံး milliseconds
+- `VOXCPM_MAX_TEXT_CHARACTERS`: Thalika မှ remote backend သို့ ပို့မည့် chunk တစ်ခုစာ max characters။ Hugging Face Space env နှင့် တူအောင်ထားပါ။
 - `GEMINI_REQUEST_TIMEOUT`: Gemini request timeout milliseconds
 - `GEMINI_API_KEY`: Script page မှ rewrite လုပ်ရာတွင် အသုံးပြုသော Gemini API key
 
 Script page ရှိ settings dialog မှတစ်ဆင့် `GEMINI_API_KEY` ကို `.env.local` ထဲသို့ သိမ်းဆည်းနိုင်သည်။
+
+Production တွင် public demo Space ဖြစ်သော `https://openbmb-voxcpm-demo.hf.space` ကို မသုံးရန် အကြံပြုသည်။ Demo Space သည် public shared backend ဖြစ်သောကြောင့် sleep, rate limit, queue delay, endpoint/output shape ပြောင်းလဲမှုများကြောင့် production reliability မကောင်းနိုင်သည်။
+
+Production အတွက် ပိုသင့်သော setup:
+
+```bash
+HF_VOXCPM2_URL=https://your-private-voxcpm2-backend.example.com
+```
+
+အကောင်းဆုံးရွေးချယ်မှုများ:
+
+- Private Hugging Face Space ကို duplicate/deploy လုပ်ပြီး `HF_VOXCPM2_URL` တွင် ထည့်သုံးခြင်း
+- Hugging Face Inference Endpoint သို့မဟုတ် dedicated GPU backend ဖြင့် run ခြင်း
+- ကိုယ်ပိုင် server တွင် VoxCPM2/Gradio compatible backend self-host လုပ်ခြင်း
+
+`NODE_ENV=production` တွင် `HF_VOXCPM2_URL` မသတ်မှတ်ထားပါက သို့မဟုတ် demo URL ကို set ထားပါက Thalika သည် demo URL သို့ fallback မလုပ်တော့ဘဲ health badge တွင် `HF not configured` ပြမည်။
+
+## Self-host VoxCPM2 Backend
+
+OpenBMB public demo ကို duplicate လုပ်ရုံဖြင့် production backend မရနိုင်ပါ။ Current demo သည် `NANOVLLM_API_BASE` backend ကို secret အဖြစ်လိုအပ်နိုင်သော frontend ဖြစ်သည်။ Thalika အတွက် ကိုယ်ပိုင် backend ကို [backend/voxcpm-gradio](/Users/bg/Documents/thalika-voice-clone/backend/voxcpm-gradio/README.md:1) တွင် ထည့်ထားသည်။
+
+Hugging Face Space အသစ်ဖန်တီးရန်:
+
+1. New Space ဖန်တီးပါ။
+2. SDK ကို `Gradio` ရွေးပါ။
+3. Hardware ကို `Nvidia T4 medium` သို့မဟုတ် ပိုမြင့်သော GPU ရွေးပါ။
+4. [backend/voxcpm-gradio/app.py](/Users/bg/Documents/thalika-voice-clone/backend/voxcpm-gradio/app.py:1), [requirements.txt](/Users/bg/Documents/thalika-voice-clone/backend/voxcpm-gradio/requirements.txt:1), [packages.txt](/Users/bg/Documents/thalika-voice-clone/backend/voxcpm-gradio/packages.txt:1), [README.md](/Users/bg/Documents/thalika-voice-clone/backend/voxcpm-gradio/README.md:1) ကို Space ထဲ upload လုပ်ပါ။
+5. Space running ဖြစ်သွားပါက Thalika env တွင် ထို Space URL ကို ထည့်ပါ။
+
+```bash
+HF_VOXCPM2_URL=https://your-username-your-voxcpm-space.hf.space
+```
+
+Local GPU server တွင် run မည်ဆိုပါက:
+
+```bash
+cd backend/voxcpm-gradio
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+ပြီးလျှင် Thalika env:
+
+```bash
+HF_VOXCPM2_URL=http://127.0.0.1:7860
+```
 
 ## Browser တွင် Run ခြင်း
 

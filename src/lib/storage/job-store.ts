@@ -43,34 +43,47 @@ export async function saveJob(record: Omit<JobRecord, "createdAt"> & { createdAt
   return job;
 }
 
+function parseJobMarkdown(content: string) {
+  const parsed = parseMarkdown(content);
+  return {
+    id: parsed.frontmatter.id || "",
+    scriptId: parsed.frontmatter.scriptId || "",
+    title: parsed.frontmatter.title || "Untitled Script",
+    provider: parsed.frontmatter.provider || "unknown",
+    format: (parsed.frontmatter.format || "wav") as OutputFormat,
+    speed: toNumber(parsed.frontmatter.speed, 1),
+    emotion: (parsed.frontmatter.emotion || "neutral") as VoiceEmotion,
+    status: parsed.frontmatter.status === "failed" ? "failed" : parsed.frontmatter.status === "generating" ? "generating" : "completed",
+    audioFile: parsed.frontmatter.audioFile,
+    error: parsed.frontmatter.error,
+    completedChunks: toNumber(parsed.frontmatter.completedChunks, 0),
+    totalChunks: toNumber(parsed.frontmatter.totalChunks, 0),
+    progressMessage: parsed.frontmatter.progressMessage,
+    voiceProfileId: parsed.frontmatter.voiceProfileId,
+    lexiconRevision: parsed.frontmatter.lexiconRevision,
+    normalizationChanges: toNumber(parsed.frontmatter.normalizationChanges, 0),
+    referenceQualityScore: toNumber(parsed.frontmatter.referenceQualityScore, 0),
+    referenceTranscriptUsed: parsed.frontmatter.referenceTranscriptUsed === "true",
+    createdAt: parsed.frontmatter.createdAt || "",
+    content: parsed.body
+  } satisfies JobRecord;
+}
+
+export async function getJob(jobId: string) {
+  await ensureDataDirs();
+  if (!/^job_[a-zA-Z0-9_-]+$/.test(jobId)) {
+    throw new Error("Invalid job id");
+  }
+
+  const markdown = await fs.readFile(safeJoin(jobsDir, `${jobId}.md`), "utf8");
+  const job = parseJobMarkdown(markdown);
+  return { ...job, review: await readListeningReview(job.id) };
+}
+
 export async function listJobs(limit = 20) {
   const files = await readMarkdownFiles(jobsDir);
   const jobs = files
-    .map(({ content }) => {
-      const parsed = parseMarkdown(content);
-      return {
-        id: parsed.frontmatter.id || "",
-        scriptId: parsed.frontmatter.scriptId || "",
-        title: parsed.frontmatter.title || "Untitled Script",
-        provider: parsed.frontmatter.provider || "unknown",
-        format: (parsed.frontmatter.format || "wav") as OutputFormat,
-        speed: toNumber(parsed.frontmatter.speed, 1),
-        emotion: (parsed.frontmatter.emotion || "neutral") as VoiceEmotion,
-        status: parsed.frontmatter.status === "failed" ? "failed" : parsed.frontmatter.status === "generating" ? "generating" : "completed",
-        audioFile: parsed.frontmatter.audioFile,
-        error: parsed.frontmatter.error,
-        completedChunks: toNumber(parsed.frontmatter.completedChunks, 0),
-        totalChunks: toNumber(parsed.frontmatter.totalChunks, 0),
-        progressMessage: parsed.frontmatter.progressMessage,
-        voiceProfileId: parsed.frontmatter.voiceProfileId,
-        lexiconRevision: parsed.frontmatter.lexiconRevision,
-        normalizationChanges: toNumber(parsed.frontmatter.normalizationChanges, 0),
-        referenceQualityScore: toNumber(parsed.frontmatter.referenceQualityScore, 0),
-        referenceTranscriptUsed: parsed.frontmatter.referenceTranscriptUsed === "true",
-        createdAt: parsed.frontmatter.createdAt || "",
-        content: parsed.body
-      } satisfies JobRecord;
-    })
+    .map(({ content }) => parseJobMarkdown(content))
     .filter((job) => job.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit);

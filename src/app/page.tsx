@@ -20,7 +20,9 @@ import type {
   ReferenceQualityReport,
   VoiceProfileSummary,
   VoiceEmotion,
-  VoiceProvider
+  VoiceGender,
+  VoiceProvider,
+  JobRecord
 } from "@/lib/types";
 
 interface AudioResult {
@@ -30,9 +32,70 @@ interface AudioResult {
   createdAt: string;
 }
 
+interface GenerationProgressState {
+  jobId: string;
+  completedChunks: number;
+  totalChunks: number;
+  message: string;
+}
+
 interface VoiceOverDraft {
   title?: string;
   script?: string;
+  provider?: VoiceProvider;
+  speed?: number;
+  emotion?: VoiceEmotion;
+  voiceGender?: VoiceGender;
+  voicePrompt?: string;
+  cloneMode?: CloneMode;
+  cloneStrength?: number;
+  denoiseReference?: boolean;
+  normalizeText?: boolean;
+  referenceAudio?: ReferenceAudioPayload;
+  referenceText?: string;
+  referenceQualityReport?: ReferenceQualityReport;
+  selectedProfileId?: string;
+  normalization?: BurmeseNormalizationResult;
+  normalizationApproved?: boolean;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+const voiceDesignPrompts: Record<VoiceGender, string> = {
+  auto: "A warm clear Burmese audiobook narrator voice, natural storytelling, clear Myanmar pronunciation, calm pacing, studio-quality narration",
+  male: "A warm mature Burmese male audiobook narrator voice, natural storytelling, clear Myanmar pronunciation, calm pacing, expressive but not dramatic, studio-quality narration",
+  female: "A warm mature Burmese female audiobook narrator voice, natural storytelling, clear Myanmar pronunciation, calm pacing, expressive but not dramatic, studio-quality narration"
+};
+
+const activeGenerationJobStorageKey = "thalika.activeGenerationJobId";
+
+function readActiveGenerationJobId() {
+  try {
+    return window.localStorage.getItem(activeGenerationJobStorageKey);
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveGenerationJobId(jobId: string) {
+  try {
+    window.localStorage.setItem(activeGenerationJobStorageKey, jobId);
+  } catch {
+    // Progress still works for the current mounted page without localStorage.
+  }
+}
+
+function clearActiveGenerationJobId(jobId?: string) {
+  try {
+    const activeJobId = window.localStorage.getItem(activeGenerationJobStorageKey);
+    if (!jobId || activeJobId === jobId) {
+      window.localStorage.removeItem(activeGenerationJobStorageKey);
+    }
+  } catch {
+    // Nothing to clear if browser storage is unavailable.
+  }
 }
 
 export default function Home() {
@@ -41,6 +104,8 @@ export default function Home() {
   const [provider, setProvider] = useState<VoiceProvider>("burmese_production");
   const [speed, setSpeed] = useState(1);
   const [emotion, setEmotion] = useState<VoiceEmotion>("calm");
+  const [voiceGender, setVoiceGender] = useState<VoiceGender>("auto");
+  const [voicePrompt, setVoicePrompt] = useState(voiceDesignPrompts.auto);
   const [cloneMode, setCloneMode] = useState<CloneMode>("high_fidelity");
   const [cloneStrength, setCloneStrength] = useState(2.8);
   const [denoiseReference, setDenoiseReference] = useState(false);
@@ -48,6 +113,7 @@ export default function Home() {
   const [status, setStatus] = useState<StudioStatus>("idle");
   const [error, setError] = useState("");
   const [audioResult, setAudioResult] = useState<AudioResult | undefined>();
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgressState | undefined>();
   const [referenceAudio, setReferenceAudio] = useState<ReferenceAudioPayload | undefined>();
   const [referenceAudioError, setReferenceAudioError] = useState("");
   const [referenceText, setReferenceText] = useState("");
@@ -61,6 +127,41 @@ export default function Home() {
   const [providerHealthLoading, setProviderHealthLoading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const loadedDraftRef = useRef(false);
+  const activePollRef = useRef(0);
+  const latestDraftPayloadRef = useRef<Record<string, unknown> | null>(null);
+  const normalizationRef = useRef<BurmeseNormalizationResult | undefined>(undefined);
+  const normalizationApprovedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      activePollRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    normalizationRef.current = normalization;
+  }, [normalization]);
+
+  useEffect(() => {
+    normalizationApprovedRef.current = normalizationApproved;
+  }, [normalizationApproved]);
+
+  useEffect(() => {
+    const activeJobId = readActiveGenerationJobId();
+    if (!activeJobId) return;
+
+    const pollToken = activePollRef.current + 1;
+    activePollRef.current = pollToken;
+    setStatus("generating");
+    setError("");
+    setGenerationProgress({
+      jobId: activeJobId,
+      completedChunks: 0,
+      totalChunks: 0,
+      message: "Checking active generation job."
+    });
+    void pollGenerationJob(activeJobId, pollToken);
+  }, []);
 
   useEffect(() => {
     async function loadDraft() {
@@ -70,7 +171,22 @@ export default function Home() {
         const data = (await response.json()) as { draft: VoiceOverDraft | null };
         if (!data.draft) return;
         if (data.draft.title) setTitle(data.draft.title);
-        if (data.draft.script) setScript(data.draft.script);
+        setScript(data.draft.script || "");
+        if (data.draft.provider) setProvider(data.draft.provider);
+        if (data.draft.speed) setSpeed(data.draft.speed);
+        if (data.draft.emotion) setEmotion(data.draft.emotion);
+        if (data.draft.voiceGender) setVoiceGender(data.draft.voiceGender);
+        if (data.draft.voicePrompt !== undefined) setVoicePrompt(data.draft.voicePrompt || voiceDesignPrompts[data.draft.voiceGender || "auto"]);
+        if (data.draft.cloneMode) setCloneMode(data.draft.cloneMode);
+        if (data.draft.cloneStrength) setCloneStrength(data.draft.cloneStrength);
+        if (data.draft.denoiseReference !== undefined) setDenoiseReference(data.draft.denoiseReference);
+        if (data.draft.normalizeText !== undefined) setNormalizeText(data.draft.normalizeText);
+        if (data.draft.referenceAudio) setReferenceAudio(data.draft.referenceAudio);
+        if (data.draft.referenceText !== undefined) setReferenceText(data.draft.referenceText);
+        if (data.draft.referenceQualityReport) setReferenceQualityReport(data.draft.referenceQualityReport);
+        if (data.draft.selectedProfileId) setSelectedProfileId(data.draft.selectedProfileId);
+        if (data.draft.normalization) setNormalization(data.draft.normalization);
+        if (data.draft.normalizationApproved !== undefined) setNormalizationApproved(data.draft.normalizationApproved);
         loadedDraftRef.current = true;
       } catch {
         // Draft transfer is optional; voice generation still works without it.
@@ -108,7 +224,16 @@ export default function Home() {
         body: JSON.stringify({ script })
       });
       if (!response.ok) throw new Error("Could not prepare Burmese pronunciation preview.");
-      setNormalization((await response.json()) as BurmeseNormalizationResult);
+      const result = (await response.json()) as BurmeseNormalizationResult;
+      const previousNormalization = normalizationRef.current;
+      setNormalizationApproved(
+        Boolean(
+          normalizationApprovedRef.current &&
+            previousNormalization?.normalizedScript === result.normalizedScript &&
+            previousNormalization.lexiconRevision === result.lexiconRevision
+        )
+      );
+      setNormalization(result);
     } catch {
       setNormalization(undefined);
     } finally {
@@ -121,31 +246,83 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [refreshNormalization]);
 
+  const draftPayload = useMemo(
+    () => ({
+      title,
+      script,
+      provider,
+      speed,
+      emotion,
+      voiceGender,
+      voicePrompt,
+      cloneMode,
+      cloneStrength,
+      denoiseReference,
+      normalizeText,
+      referenceAudio: referenceAudio || null,
+      referenceText,
+      referenceQualityReport: referenceQualityReport || null,
+      selectedProfileId,
+      normalization: normalization || null,
+      normalizationApproved
+    }),
+    [
+      cloneMode,
+      cloneStrength,
+      denoiseReference,
+      emotion,
+      normalizeText,
+      normalization,
+      normalizationApproved,
+      provider,
+      referenceAudio,
+      referenceQualityReport,
+      referenceText,
+      script,
+      selectedProfileId,
+      speed,
+      title,
+      voiceGender,
+      voicePrompt
+    ]
+  );
+
+  useEffect(() => {
+    latestDraftPayloadRef.current = draftPayload;
+  }, [draftPayload]);
+
+  useEffect(() => {
+    return () => {
+      const payload = latestDraftPayloadRef.current;
+      if (!payload) return;
+      const body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon("/api/drafts/voice-over", blob)) return;
+      }
+      void fetch("/api/drafts/voice-over", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true
+      });
+    };
+  }, []);
+
   useEffect(() => {
     if (!draftReady) return;
-    if (!script.trim()) {
-      const timeout = window.setTimeout(() => {
-        void fetch("/api/drafts/voice-over", { method: "DELETE" });
-      }, 600);
-
-      return () => window.clearTimeout(timeout);
-    }
-    if (script.trim().length < 10) return;
 
     const timeout = window.setTimeout(() => {
       void fetch("/api/drafts/voice-over", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          script
-        })
+        body: JSON.stringify(draftPayload)
       });
       loadedDraftRef.current = false;
     }, loadedDraftRef.current ? 1200 : 600);
 
     return () => window.clearTimeout(timeout);
-  }, [draftReady, script, title]);
+  }, [draftPayload, draftReady]);
 
   const refreshProviderHealth = useCallback(async () => {
     setProviderHealthLoading(true);
@@ -236,6 +413,11 @@ export default function Home() {
     }
   }
 
+  function handleVoiceGenderChange(value: VoiceGender) {
+    setVoiceGender(value);
+    setVoicePrompt(voiceDesignPrompts[value]);
+  }
+
   async function saveProfile(name: string, consent: boolean) {
     if (!referenceAudio || !referenceQualityReport) return;
     const response = await fetch("/api/voice-profiles", {
@@ -273,6 +455,52 @@ export default function Home() {
     await loadProfiles();
   }
 
+  async function pollGenerationJob(jobId: string, pollToken: number) {
+    try {
+      while (activePollRef.current === pollToken) {
+        const response = await fetch(`/api/history/${encodeURIComponent(jobId)}`, { cache: "no-store" });
+        const data = (await response.json()) as { job?: JobRecord; audioUrl?: string; error?: string };
+        if (!response.ok || !data.job) {
+          throw new Error(data.error || "Could not read generation progress.");
+        }
+
+        const job = data.job;
+        setGenerationProgress({
+          jobId,
+          completedChunks: job.completedChunks || 0,
+          totalChunks: job.totalChunks || 0,
+          message: job.progressMessage || job.content || "Generating audio."
+        });
+
+        if (job.status === "completed") {
+          if (!job.audioFile || !data.audioUrl) {
+            throw new Error("Generation completed without an audio file.");
+          }
+          clearActiveGenerationJobId(jobId);
+          setAudioResult({
+            audioUrl: data.audioUrl,
+            filename: job.audioFile,
+            provider: job.provider,
+            createdAt: job.createdAt
+          });
+          setStatus("completed");
+          return;
+        }
+
+        if (job.status === "failed") {
+          clearActiveGenerationJobId(jobId);
+          throw new Error(job.error || "Generation failed");
+        }
+
+        await wait(2000);
+      }
+    } catch (caught) {
+      if (activePollRef.current !== pollToken) return;
+      setError(caught instanceof Error ? caught.message : "Generation failed");
+      setStatus("failed");
+    }
+  }
+
   async function generateAudio() {
     const preflight = preflightProvider({ provider, script, referenceAudio, voiceProfileId: selectedProfileId || undefined, referenceText, normalizationApproved, cloneMode });
     if (scriptError || !preflight.ok) {
@@ -280,12 +508,14 @@ export default function Home() {
       setStatus("failed");
       return;
     }
+    const pollToken = activePollRef.current + 1;
+    activePollRef.current = pollToken;
     setStatus("saving");
     setError("");
     setAudioResult(undefined);
+    setGenerationProgress(undefined);
 
     try {
-      setStatus("generating");
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -296,6 +526,8 @@ export default function Home() {
           format: "wav",
           speed,
           emotion,
+          voiceGender,
+          voicePrompt,
           cloneMode,
           cloneStrength,
           denoiseReference,
@@ -315,14 +547,17 @@ export default function Home() {
         throw new Error(data.message || data.error || "Generation failed");
       }
 
-      setAudioResult({
-        audioUrl: data.audioUrl,
-        filename: data.filename,
-        provider: data.provider,
-        createdAt: data.createdAt
+      setStatus("generating");
+      setGenerationProgress({
+        jobId: data.jobId,
+        completedChunks: 0,
+        totalChunks: 0,
+        message: data.progressMessage || "Preparing audio generation."
       });
-      setStatus("completed");
+      saveActiveGenerationJobId(data.jobId);
+      void pollGenerationJob(data.jobId, pollToken);
     } catch (caught) {
+      if (activePollRef.current === pollToken) activePollRef.current += 1;
       setError(caught instanceof Error ? caught.message : "Generation failed");
       setStatus("failed");
     }
@@ -341,9 +576,7 @@ export default function Home() {
               : "")
       : provider === "voxcpm2"
         ? referenceAudioError ||
-          (!referenceAudio && !selectedProfileId
-            ? "VoxCPM2 requires reference audio for voice cloning."
-            : referenceAudio?.durationSeconds && referenceAudio.durationSeconds < 3
+          (referenceAudio?.durationSeconds && referenceAudio.durationSeconds < 3
               ? "Reference audio is too short. Use at least 3 seconds, ideally 6-15 seconds."
               : referenceAudio?.durationSeconds && referenceAudio.durationSeconds > 50
                 ? "Reference audio is too long for VoxCPM2. Trim it to 6-30 seconds of clean speech."
@@ -352,8 +585,9 @@ export default function Home() {
   const generateDisabled =
     Boolean(scriptError) ||
     isGenerating ||
-    ((provider === "voxcpm2" || provider === "burmese_production") &&
+    (provider === "burmese_production" &&
       ((!referenceAudio && !selectedProfileId) || Boolean(referenceRequirementError))) ||
+    (provider === "voxcpm2" && Boolean(referenceRequirementError)) ||
     (provider === "burmese_production" && (referenceQualityReport?.status === "block" || !referenceText.trim() || !normalizationApproved));
   const activePreflight: ProviderPreflightResult = preflightProvider({ provider, script, referenceAudio, voiceProfileId: selectedProfileId || undefined, referenceText, normalizationApproved, cloneMode });
   const capabilityDisabled = !activePreflight.ok;
@@ -365,7 +599,7 @@ export default function Home() {
 
   const workflowSteps = [
     { label: "Script", helper: script.trim() ? "Ready" : "Paste text", icon: FileText, active: Boolean(script.trim()) },
-    { label: "Voice", helper: referenceAudio || selectedProfileId ? "Ready" : "Add sample", icon: UploadCloud, active: Boolean(referenceAudio || selectedProfileId) },
+    { label: "Voice", helper: referenceAudio || selectedProfileId ? "Clone" : provider === "voxcpm2" ? "Request" : "Add sample", icon: UploadCloud, active: provider === "voxcpm2" || Boolean(referenceAudio || selectedProfileId) },
     { label: "Generate", helper: status === "completed" ? "Done" : "Create audio", icon: WandSparkles, active: status === "completed" }
   ];
   const heroAside = (
@@ -395,11 +629,24 @@ export default function Home() {
   return (
     <StudioPageShell
       activeTab="voiceover"
-      badge="Local-first voice cloning"
+      badge="Local-first voice generation"
       title="Voice Over"
-      description="Paste Burmese script, add a clean voice reference, generate audio, then review everything locally."
+      description="Paste a script, request a voice or add a clean voice reference, generate audio, then review everything locally."
       aside={heroAside}
     >
+        {status !== "idle" && (
+          <div className="sticky top-3 z-20 px-3 pt-3 sm:px-5">
+            <StatusPanel
+              status={status}
+              error={error}
+              progressMessage={generationProgress?.message}
+              completedChunks={generationProgress?.completedChunks}
+              totalChunks={generationProgress?.totalChunks}
+              variant="dock"
+            />
+          </div>
+        )}
+
         <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
           <div className="grid gap-5">
             <ScriptInput
@@ -419,6 +666,8 @@ export default function Home() {
               provider={provider}
               speed={speed}
               emotion={emotion}
+              voiceGender={voiceGender}
+              voicePrompt={voicePrompt}
               cloneMode={cloneMode}
               cloneStrength={cloneStrength}
               denoiseReference={denoiseReference}
@@ -434,6 +683,8 @@ export default function Home() {
               onProviderChange={setProvider}
               onSpeedChange={setSpeed}
               onEmotionChange={setEmotion}
+              onVoiceGenderChange={handleVoiceGenderChange}
+              onVoicePromptChange={setVoicePrompt}
               onCloneModeChange={setCloneMode}
               onCloneStrengthChange={setCloneStrength}
               onDenoiseReferenceChange={setDenoiseReference}
@@ -452,7 +703,6 @@ export default function Home() {
               disabledReason={disabledReason}
               onClick={generateAudio}
             />
-            <StatusPanel status={status} error={error} />
             <AudioPreview result={audioResult} />
           </aside>
         </div>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { MAX_SCRIPT_CHARACTERS } from "./script-limits";
 
 const referenceAudioSchema = z.object({
   dataUrl: z.string().startsWith("data:audio/", "Reference audio must be an audio data URL"),
@@ -26,12 +25,13 @@ export const generateRequestSchema = z
     script: z
       .string()
       .trim()
-      .min(10, "Script must be at least 10 characters")
-      .max(MAX_SCRIPT_CHARACTERS, `Script must be ${MAX_SCRIPT_CHARACTERS.toLocaleString()} characters or fewer`),
+      .min(10, "Script must be at least 10 characters"),
     provider: z.enum(["voxcpm2", "burmese_production"]),
     format: z.literal("wav"),
     speed: z.number().min(0.8, "Speed must be at least 0.8").max(1.2, "Speed must be at most 1.2"),
     emotion: z.enum(["neutral", "calm", "energetic", "dramatic"]),
+    voiceGender: z.enum(["auto", "male", "female"]).optional(),
+    voicePrompt: z.string().trim().max(500, "Voice request must be 500 characters or fewer").optional().or(z.literal("")),
     cloneMode: z.enum(["balanced", "high_fidelity"]).optional(),
     cloneStrength: z.number().min(1, "Clone strength must be at least 1.0").max(3, "Clone strength must be at most 3.0").optional(),
     denoiseReference: z.boolean().optional(),
@@ -40,7 +40,7 @@ export const generateRequestSchema = z
     referenceText: z.string().trim().max(2000, "Reference transcript must be 2000 characters or fewer").optional().or(z.literal("")),
     voiceProfileId: z.string().regex(/^profile_[a-zA-Z0-9_-]+$/, "Invalid voice profile id").optional(),
     referenceQualityReport: referenceQualitySchema.optional(),
-    approvedNormalizedScript: z.string().trim().max(MAX_SCRIPT_CHARACTERS).optional(),
+    approvedNormalizedScript: z.string().trim().optional(),
     lexiconRevision: z.string().trim().max(100).optional(),
     normalizationApproved: z.boolean().optional()
   })
@@ -50,13 +50,6 @@ export const generateRequestSchema = z
         code: z.ZodIssueCode.custom,
         path: ["referenceAudio"],
         message: "Burmese production cloning requires clean reference voice data"
-      });
-    }
-    if (value.provider === "voxcpm2" && !value.referenceAudio && !value.voiceProfileId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["referenceAudio"],
-        message: "VoxCPM2 requires reference audio for voice cloning"
       });
     }
     if (value.provider === "burmese_production" && (value.cloneMode || "high_fidelity") === "high_fidelity" && !value.referenceText?.trim() && !value.voiceProfileId) {

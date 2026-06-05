@@ -28,6 +28,38 @@ export interface GenerationSuccess {
   metadata?: Record<string, string | number | boolean>;
 }
 
+export interface GenerationAccepted {
+  jobId: string;
+  scriptId: string;
+  status: "generating";
+  provider: GenerateVoiceRequest["provider"];
+  format: GenerateVoiceRequest["format"];
+  createdAt: string;
+  progressMessage: string;
+}
+
+type BaseJob = {
+  id: string;
+  scriptId: string;
+  title: string;
+  provider: GenerateVoiceRequest["provider"];
+  format: GenerateVoiceRequest["format"];
+  speed: GenerateVoiceRequest["speed"];
+  emotion: GenerateVoiceRequest["emotion"];
+  voiceProfileId?: string;
+  lexiconRevision?: string;
+  normalizationChanges: number;
+  referenceQualityScore?: number;
+  referenceTranscriptUsed: boolean;
+  createdAt: string;
+};
+
+interface PreparedGeneration {
+  effectiveInput: GenerateVoiceRequest;
+  scriptRecord: Awaited<ReturnType<typeof saveScript>>;
+  baseJob: BaseJob;
+}
+
 function providerErrorMessage(error: unknown) {
   if (error instanceof RemoteProviderError) return error.publicMessage;
   if (error instanceof Error) return error.message;
@@ -39,7 +71,7 @@ function formatJobContent(providerName: string, audio: GenerateVoiceResult) {
   return `Generated voice metadata.\n\nProvider: ${providerName}\nFormat: ${audio.format}\nAudio file: ${audio.filename}${metadata}`;
 }
 
-export async function generateVoice(input: GenerateVoiceRequest): Promise<GenerationSuccess> {
+async function prepareGeneration(input: GenerateVoiceRequest): Promise<PreparedGeneration> {
   let effectiveInput = { ...input };
   if (input.voiceProfileId) {
     const saved = await getVoiceProfile(input.voiceProfileId);
@@ -78,7 +110,7 @@ export async function generateVoice(input: GenerateVoiceRequest): Promise<Genera
     throw new ProviderPreflightError(preflight);
   }
 
-  const scriptRecord = await saveScript({ title: effectiveInput.title, script: effectiveInput.script });
+  const scriptRecord = await saveScript({ title: effectiveInput.title, script: effectiveInput.script, kind: "snapshot" });
   const jobId = createJobId();
   const createdAt = localIsoString();
   const baseJob = {
@@ -106,11 +138,15 @@ export async function generateVoice(input: GenerateVoiceRequest): Promise<Genera
     content: "Generation is in progress."
   });
 
+  return { effectiveInput, scriptRecord, baseJob };
+}
+
+async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: PreparedGeneration): Promise<GenerationSuccess> {
   try {
     const provider = getProvider(effectiveInput.provider);
     const audio = await provider.generate({
       ...effectiveInput,
-      jobId,
+      jobId: baseJob.id,
       scriptId: scriptRecord.id,
       title: scriptRecord.title,
       onProgress: async (progress) => {
@@ -129,7 +165,7 @@ export async function generateVoice(input: GenerateVoiceRequest): Promise<Genera
       format: audio.format,
       status: "completed",
       audioFile: audio.filename,
-      createdAt,
+      createdAt: baseJob.createdAt,
       content: formatJobContent(provider.name, audio)
     });
 
@@ -150,7 +186,7 @@ export async function generateVoice(input: GenerateVoiceRequest): Promise<Genera
       ...baseJob,
       status: "failed",
       error: specificMessage,
-      createdAt,
+      createdAt: baseJob.createdAt,
       content: "Generation failed before audio output was created."
     });
 
@@ -158,4 +194,27 @@ export async function generateVoice(input: GenerateVoiceRequest): Promise<Genera
       publicMessage: specificMessage
     });
   }
+}
+
+export async function generateVoice(input: GenerateVoiceRequest): Promise<GenerationSuccess> {
+  const prepared = await prepareGeneration(input);
+  return runPreparedGeneration(prepared);
+}
+
+export async function startGenerationJob(input: GenerateVoiceRequest): Promise<GenerationAccepted> {
+  const prepared = await prepareGeneration(input);
+
+  void runPreparedGeneration(prepared).catch(() => {
+    // runPreparedGeneration persists the failure into the job file.
+  });
+
+  return {
+    jobId: prepared.baseJob.id,
+    scriptId: prepared.scriptRecord.id,
+    status: "generating",
+    provider: prepared.effectiveInput.provider,
+    format: prepared.effectiveInput.format,
+    createdAt: prepared.baseJob.createdAt,
+    progressMessage: "Preparing audio generation."
+  };
 }

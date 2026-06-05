@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { normalizeBurmeseScript } from "@/lib/burmese-normalizer";
 import { readBurmeseLexicon } from "@/lib/storage/burmese-lexicon-store";
-import { MAX_SCRIPT_CHARACTERS } from "@/lib/script-limits";
 
 export const runtime = "nodejs";
 
 const requestSchema = z.object({
-  script: z.string().trim().min(10).max(MAX_SCRIPT_CHARACTERS),
+  script: z.string().trim().min(10),
   lexiconRevision: z.string().max(100).optional()
 });
 

@@ -31,6 +31,16 @@ export function getHFInferenceTimeout() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 300000;
 }
 
+export function getHFHeaders(headers: HeadersInit = {}): HeadersInit {
+  const token = process.env.HF_TOKEN?.trim();
+  if (!token) return headers;
+
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`
+  };
+}
+
 export async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = getHFRequestTimeout()) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);

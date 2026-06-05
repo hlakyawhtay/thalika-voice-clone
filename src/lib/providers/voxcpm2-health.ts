@@ -1,6 +1,12 @@
-import { fetchWithTimeout, getHFRequestTimeout, readJsonResponse, TimeoutError } from "./hf-utils";
+import { fetchWithTimeout, getHFHeaders, getHFRequestTimeout, readJsonResponse, TimeoutError } from "./hf-utils";
 
-export type VoxCPM2HealthStatus = "connected" | "timeout" | "rate_limited" | "unavailable" | "invalid_response";
+export type VoxCPM2HealthStatus =
+  | "connected"
+  | "timeout"
+  | "rate_limited"
+  | "unavailable"
+  | "invalid_response"
+  | "misconfigured";
 
 export interface VoxCPM2Health {
   provider: "voxcpm2";
@@ -15,10 +21,30 @@ export interface VoxCPM2Health {
   checkedAt: string;
 }
 
-const defaultVoxCPM2SpaceUrl = "https://openbmb-voxcpm-demo.hf.space";
+const demoVoxCPM2SpaceUrl = "https://openbmb-voxcpm-demo.hf.space";
+
+export class VoxCPM2ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "VoxCPM2ConfigError";
+  }
+}
 
 export function getVoxCPM2BaseUrl() {
-  return (process.env.HF_VOXCPM2_URL || defaultVoxCPM2SpaceUrl).replace(/\/+$/, "");
+  const configuredUrl = process.env.HF_VOXCPM2_URL?.trim();
+  const normalizedUrl = configuredUrl?.replace(/\/+$/, "");
+
+  if (process.env.NODE_ENV === "production" && normalizedUrl === demoVoxCPM2SpaceUrl) {
+    throw new VoxCPM2ConfigError("The public VoxCPM2 demo Space must not be used in production.");
+  }
+
+  if (normalizedUrl) return normalizedUrl;
+
+  if (process.env.NODE_ENV === "production") {
+    throw new VoxCPM2ConfigError("HF_VOXCPM2_URL must be configured for production.");
+  }
+
+  return demoVoxCPM2SpaceUrl;
 }
 
 function makeHealth(
@@ -67,7 +93,7 @@ async function probeJson(baseUrl: string, endpoint: string) {
   const startedAt = Date.now();
   const response = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
     method: "GET",
-    headers: { Accept: "application/json" },
+    headers: getHFHeaders({ Accept: "application/json" }),
     cache: "no-store"
   });
   const latencyMs = Date.now() - startedAt;
@@ -113,7 +139,22 @@ async function probeJson(baseUrl: string, endpoint: string) {
 }
 
 export async function checkVoxCPM2Health(): Promise<VoxCPM2Health> {
-  const baseUrl = getVoxCPM2BaseUrl();
+  let baseUrl = "";
+
+  try {
+    baseUrl = getVoxCPM2BaseUrl();
+  } catch (error) {
+    if (error instanceof VoxCPM2ConfigError) {
+      return makeHealth("misconfigured", {
+        baseUrl,
+        endpoint: "",
+        latencyMs: 0,
+        message: "Production requires a private VoxCPM2 backend. Use a private Space, HF Inference Endpoint, or self-hosted backend instead of the public demo Space."
+      });
+    }
+
+    throw error;
+  }
 
   try {
     const info = await probeJson(baseUrl, "/gradio_api/info");

@@ -3,9 +3,15 @@
 import { Gauge, Mic2, Plus, RefreshCw, Save, Server, Settings, SlidersHorizontal, Trash2, UploadCloud, Wand2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { assessReferenceAudio } from "@/lib/reference-audio-quality";
-import type { BurmeseLexiconEntry, CloneMode, ReferenceAudioPayload, ReferenceQualityReport, VoiceEmotion, VoiceProfileSummary, VoiceProvider } from "@/lib/types";
+import type { BurmeseLexiconEntry, CloneMode, ReferenceAudioPayload, ReferenceQualityReport, VoiceEmotion, VoiceGender, VoiceProfileSummary, VoiceProvider } from "@/lib/types";
 
-export type ProviderHealthStatus = "connected" | "timeout" | "rate_limited" | "unavailable" | "invalid_response";
+export type ProviderHealthStatus =
+  | "connected"
+  | "timeout"
+  | "rate_limited"
+  | "unavailable"
+  | "invalid_response"
+  | "misconfigured";
 
 export interface ProviderHealth {
   ok: boolean;
@@ -19,6 +25,8 @@ interface VoiceSettingsProps {
   provider: VoiceProvider;
   speed: number;
   emotion: VoiceEmotion;
+  voiceGender: VoiceGender;
+  voicePrompt: string;
   cloneMode: CloneMode;
   cloneStrength: number;
   denoiseReference: boolean;
@@ -34,6 +42,8 @@ interface VoiceSettingsProps {
   onProviderChange: (value: VoiceProvider) => void;
   onSpeedChange: (value: number) => void;
   onEmotionChange: (value: VoiceEmotion) => void;
+  onVoiceGenderChange: (value: VoiceGender) => void;
+  onVoicePromptChange: (value: string) => void;
   onCloneModeChange: (value: CloneMode) => void;
   onCloneStrengthChange: (value: number) => void;
   onDenoiseReferenceChange: (value: boolean) => void;
@@ -52,7 +62,8 @@ const healthLabel: Record<ProviderHealthStatus, string> = {
   timeout: "HF timeout",
   rate_limited: "HF rate limited",
   unavailable: "HF unavailable",
-  invalid_response: "HF invalid response"
+  invalid_response: "HF invalid response",
+  misconfigured: "HF not configured"
 };
 
 const healthClassName: Record<ProviderHealthStatus, string> = {
@@ -60,13 +71,16 @@ const healthClassName: Record<ProviderHealthStatus, string> = {
   timeout: "border-amber-300/45 bg-amber-400/10 text-amber-800",
   rate_limited: "border-amber-300/45 bg-amber-400/10 text-amber-800",
   unavailable: "border-red-300/50 bg-red-400/10 text-red-700",
-  invalid_response: "border-red-300/50 bg-red-400/10 text-red-700"
+  invalid_response: "border-red-300/50 bg-red-400/10 text-red-700",
+  misconfigured: "border-red-300/50 bg-red-400/10 text-red-700"
 };
 
 export function VoiceSettings({
   provider,
   speed,
   emotion,
+  voiceGender,
+  voicePrompt,
   cloneMode,
   cloneStrength,
   denoiseReference,
@@ -82,6 +96,8 @@ export function VoiceSettings({
   onProviderChange,
   onSpeedChange,
   onEmotionChange,
+  onVoiceGenderChange,
+  onVoicePromptChange,
   onCloneModeChange,
   onCloneStrengthChange,
   onDenoiseReferenceChange,
@@ -222,7 +238,7 @@ export function VoiceSettings({
             </label>
 
             <label className="grid gap-2 text-sm font-medium text-studio-muted">
-              <span className="inline-flex items-center gap-2"><UploadCloud size={15} /> Reference audio</span>
+              <span className="inline-flex items-center gap-2"><UploadCloud size={15} /> Reference audio {provider === "voxcpm2" ? "(optional)" : ""}</span>
               <input
                 type="file"
                 accept="audio/*"
@@ -238,11 +254,39 @@ export function VoiceSettings({
                   : selectedProfileId
                     ? "Saved local voice profile selected."
                     : provider === "voxcpm2"
-                      ? "Upload a clean voice reference for VoxCPM2 cloning."
+                      ? "Leave empty for requested voice design, or upload a clean voice reference for cloning."
                       : provider === "burmese_production"
                         ? "Upload clean Burmese voice data. This will run through the VoxCPM2 backend."
                         : "Upload a 3-10 second audio sample for the remote Space.")}
             </p>
+
+            {provider === "voxcpm2" && !referenceAudio && !selectedProfileId && (
+              <div className="grid gap-3">
+                <label className="grid gap-2 text-sm font-medium text-studio-muted">
+                  Default voice
+                  <select
+                    value={voiceGender}
+                    onChange={(event) => onVoiceGenderChange(event.target.value as VoiceGender)}
+                    className="studio-control-bg rounded-2xl border border-white/10 px-3 py-3 text-studio-text outline-none focus:border-studio-accent"
+                  >
+                    <option value="auto">Auto</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-medium text-studio-muted">
+                  Voice request
+                  <textarea
+                    value={voicePrompt}
+                    onChange={(event) => onVoicePromptChange(event.target.value)}
+                    maxLength={500}
+                    placeholder="e.g. A warm mature Burmese audiobook narrator with clear Myanmar pronunciation"
+                    className="studio-control-bg min-h-24 rounded-2xl border border-white/10 px-3 py-3 text-studio-text outline-none focus:border-studio-accent"
+                  />
+                  <span className="text-xs leading-5">Used when no reference audio is selected.</span>
+                </label>
+              </div>
+            )}
 
             {(referenceAudio || selectedProfileId) && (
               <div className="studio-control-bg grid gap-2 rounded-2xl border border-white/10 p-3">
@@ -260,7 +304,7 @@ export function VoiceSettings({
             )}
 
             <label className="grid gap-2 text-sm font-medium text-studio-muted">
-              Exact reference transcript
+              Exact reference transcript {provider === "voxcpm2" ? "(only for cloning)" : ""}
               <textarea value={referenceText} onChange={(event) => onReferenceTextChange(event.target.value)} maxLength={2000} placeholder="Paste the exact words spoken in the reference audio..." className="studio-control-bg min-h-24 rounded-2xl border border-white/10 px-3 py-3 text-studio-text outline-none focus:border-studio-accent" />
               <span className="text-xs leading-5">Required for Burmese high-fidelity cloning. The transcript is sent with the reference audio to improve similarity.</span>
             </label>

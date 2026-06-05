@@ -37,14 +37,14 @@ export const providerCapabilities: Record<VoiceProvider, ProviderCapability> = {
       "Italian",
       "and other VoxCPM2-supported languages"
     ],
-    requiresReferenceAudio: true,
+    requiresReferenceAudio: false,
     canCloneVoice: true,
     limitations: [
       "Direct VoxCPM2 engine access for supported multilingual scripts.",
-      "Uses the public OpenBMB Hugging Face Space for remote inference.",
-      "Highest-fidelity cloning needs clean reference audio and stable Burmese text."
+      "Can generate a requested voice from control instructions without reference audio.",
+      "Highest-fidelity cloning still needs clean reference audio and stable Burmese text."
     ],
-    recommendation: "This is the strongest current candidate for Burmese cloning. Send Burmese text and clean reference audio."
+    recommendation: "Use without reference audio for voice design, or add clean reference audio for cloning."
   },
   burmese_production: {
     provider: "burmese_production",
@@ -103,21 +103,13 @@ export function preflightProvider(
       };
     }
 
-    if (!input.referenceAudio && !input.voiceProfileId) {
-      return {
-        ok: false,
-        severity: "blocked",
-        detectedLanguage,
-        message: "VoxCPM2 requires reference audio for voice cloning.",
-        nextStep: "Upload a clean speaker reference clip."
-      };
-    }
-
     return {
       ok: true,
       severity: "info",
       detectedLanguage,
-      message: "VoxCPM2 model selected for Burmese voice cloning.",
+      message: input.referenceAudio || input.voiceProfileId
+        ? "VoxCPM2 model selected for voice cloning."
+        : "VoxCPM2 model selected for voice design without cloning.",
       nextStep: "",
       hideNextStep: true
     };

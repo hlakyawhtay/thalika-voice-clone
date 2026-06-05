@@ -7,6 +7,10 @@ export type StudioStatus = "idle" | "saving" | "generating" | "completed" | "fai
 interface StatusPanelProps {
   status: StudioStatus;
   error?: string;
+  progressMessage?: string;
+  completedChunks?: number;
+  totalChunks?: number;
+  variant?: "card" | "dock";
 }
 
 const labels: Record<StudioStatus, string> = {
@@ -17,14 +21,27 @@ const labels: Record<StudioStatus, string> = {
   failed: "Failed"
 };
 
-export function StatusPanel({ status, error }: StatusPanelProps) {
+export function StatusPanel({
+  status,
+  error,
+  progressMessage,
+  completedChunks = 0,
+  totalChunks = 0,
+  variant = "card"
+}: StatusPanelProps) {
   const Icon = status === "completed" ? CheckCircle2 : status === "failed" ? XCircle : status === "idle" ? Radio : Loader2;
+  const showProgress = status === "generating" && totalChunks > 0;
+  const progressPercent = showProgress ? Math.min(100, Math.round((completedChunks / totalChunks) * 100)) : 0;
+  const panelClass =
+    variant === "dock"
+      ? "rounded-[1.5rem] border border-white/25 bg-white/90 p-4 shadow-xl shadow-slate-300/35 backdrop-blur"
+      : "studio-card-bg rounded-[2.2rem] border border-white/10 p-5";
 
   return (
-    <section className="studio-card-bg rounded-[2.2rem] border border-white/10 p-5">
-      <div className="flex items-center justify-between gap-3">
+    <section className={panelClass}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
             <Icon size={19} className={status === "saving" || status === "generating" ? "animate-spin" : ""} />
           </div>
           <h2 className="text-lg font-semibold text-studio-text">Status</h2>
@@ -43,11 +60,24 @@ export function StatusPanel({ status, error }: StatusPanelProps) {
       </div>
       <p className="mt-3 text-sm text-studio-muted">
         {status === "idle" && "Waiting for a valid script."}
-        {status === "saving" && "Writing Markdown files into local storage."}
-        {status === "generating" && "Generating audio through the selected provider."}
+        {status === "saving" && (progressMessage || "Starting background generation job.")}
+        {status === "generating" && (progressMessage || "Generating audio through the selected provider.")}
         {status === "completed" && "Audio is ready for preview and download."}
         {status === "failed" && (error || "Something went wrong.")}
       </p>
+      {showProgress && (
+        <div className="mt-4 grid gap-2">
+          <div className="flex items-center justify-between text-xs font-semibold text-studio-muted">
+            <span>
+              Segment {completedChunks}/{totalChunks}
+            </span>
+            <span>{progressPercent}%</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-studio-border">
+            <div className="h-full rounded-full bg-studio-accent transition-all" style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

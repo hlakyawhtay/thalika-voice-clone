@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { formatValidationError, generateRequestSchema } from "@/lib/validators";
 import { RemoteProviderError } from "@/lib/providers/hf-utils";
-import { generateVoice, ProviderPreflightError } from "@/lib/services/generation-service";
+import { ProviderPreflightError, startGenerationJob } from "@/lib/services/generation-service";
 
 export const runtime = "nodejs";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json(await generateVoice(parsed.data));
+    return NextResponse.json(await startGenerationJob(parsed.data), { status: 202 });
   } catch (error) {
     if (error instanceof ProviderPreflightError) {
       return NextResponse.json(
