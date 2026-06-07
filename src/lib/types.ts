@@ -3,8 +3,8 @@ export type OutputFormat = "wav" | "mp3";
 export type VoiceEmotion = "neutral" | "calm" | "energetic" | "dramatic";
 export type VoiceGender = "auto" | "male" | "female";
 export type CloneMode = "balanced" | "high_fidelity";
-export type JobStatus = "generating" | "completed" | "failed";
-export type ScriptGenerationStatus = "idle" | "queued" | "generating" | "completed" | "failed";
+export type JobStatus = "generating" | "completed" | "failed" | "canceled";
+export type ScriptGenerationStatus = "idle" | "queued" | "generating" | "completed" | "failed" | "canceled";
 export type LanguageCode = "unknown" | "my" | "en" | "zh" | "ja" | "ko" | "yue" | "de" | "fr" | "ru" | "pt" | "es" | "it" | "mixed_supported";
 export type CapabilityLevel = "demo" | "baseline" | "production";
 
@@ -117,6 +117,7 @@ export interface GenerateVoiceRequest {
   format: OutputFormat;
   speed: number;
   emotion: VoiceEmotion;
+  expressiveness?: number;
   voiceGender?: VoiceGender;
   voicePrompt?: string;
   cloneMode?: CloneMode;
@@ -135,6 +136,11 @@ export interface GenerateVoiceRequest {
 export interface GenerateVoiceInput extends GenerateVoiceRequest {
   jobId: string;
   scriptId: string;
+  outputStem?: string;
+  chunkDir?: string;
+  resumeExistingChunks?: boolean;
+  abortSignal?: AbortSignal;
+  isCancellationRequested?: () => Promise<boolean>;
   onProgress?: (progress: GenerationProgress) => Promise<void>;
 }
 
@@ -179,6 +185,7 @@ export interface JobRecord {
   format: OutputFormat;
   speed: number;
   emotion: VoiceEmotion;
+  expressiveness?: number;
   status: JobStatus;
   audioFile?: string;
   error?: string;

@@ -14,6 +14,7 @@ const draftSchema = z.object({
   provider: z.enum(["voxcpm2", "burmese_production"]).optional(),
   speed: z.number().min(0.8).max(1.2).optional(),
   emotion: z.enum(["neutral", "calm", "energetic", "dramatic"]).optional(),
+  expressiveness: z.number().min(0.2).max(1).optional(),
   voiceGender: z.enum(["auto", "male", "female"]).optional(),
   voicePrompt: z.string().trim().max(500).optional().or(z.literal("")),
   cloneMode: z.enum(["balanced", "high_fidelity"]).optional(),

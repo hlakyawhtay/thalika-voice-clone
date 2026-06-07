@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 export const dataDir = path.join(process.cwd(), "data");
 export const scriptsDir = path.join(dataDir, "scripts");
 export const jobsDir = path.join(dataDir, "jobs");
+export const jobChunksDir = path.join(jobsDir, "chunks");
 export const outputsDir = path.join(dataDir, "outputs");
 export const legacyOutputsBackupDir = path.join(outputsDir, "legacy-backup");
 export const logsDir = path.join(dataDir, "logs");
@@ -16,6 +17,7 @@ export async function ensureDataDirs() {
   await Promise.all([
     fs.mkdir(scriptsDir, { recursive: true }),
     fs.mkdir(jobsDir, { recursive: true }),
+    fs.mkdir(jobChunksDir, { recursive: true }),
     fs.mkdir(outputsDir, { recursive: true }),
     fs.mkdir(legacyOutputsBackupDir, { recursive: true }),
     fs.mkdir(logsDir, { recursive: true }),

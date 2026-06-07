@@ -19,6 +19,7 @@ export interface StudioSettings {
   provider: VoiceProvider;
   speed: number;
   emotion: VoiceEmotion;
+  expressiveness: number;
   voiceGender: VoiceGender;
   voicePrompt: string;
   cloneMode: CloneMode;
@@ -38,6 +39,7 @@ export const defaultStudioSettings: StudioSettings = {
   provider: "burmese_production",
   speed: 1,
   emotion: "calm",
+  expressiveness: 0.7,
   voiceGender: "auto",
   voicePrompt:
     "A warm clear Burmese audiobook narrator voice, natural storytelling, clear Myanmar pronunciation, calm pacing, studio-quality narration",

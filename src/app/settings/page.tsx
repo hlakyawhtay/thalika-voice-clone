@@ -26,6 +26,7 @@ interface StudioSettingsResponse {
     provider: VoiceProvider;
     speed: number;
     emotion: VoiceEmotion;
+    expressiveness: number;
     voiceGender: VoiceGender;
     voicePrompt: string;
     cloneMode: CloneMode;
@@ -58,6 +59,7 @@ export default function SettingsPage() {
   const [provider, setProvider] = useState<VoiceProvider>("burmese_production");
   const [speed, setSpeed] = useState(1);
   const [emotion, setEmotion] = useState<VoiceEmotion>("calm");
+  const [expressiveness, setExpressiveness] = useState(0.7);
   const [voiceGender, setVoiceGender] = useState<VoiceGender>("auto");
   const [voicePrompt, setVoicePrompt] = useState(voiceDesignPrompts.auto);
   const [cloneMode, setCloneMode] = useState<CloneMode>("high_fidelity");
@@ -91,6 +93,7 @@ export default function SettingsPage() {
       provider,
       speed,
       emotion,
+      expressiveness,
       voiceGender,
       voicePrompt,
       cloneMode,
@@ -107,6 +110,7 @@ export default function SettingsPage() {
       cloneStrength,
       denoiseReference,
       emotion,
+      expressiveness,
       keepBurmese,
       normalizeText,
       provider,
@@ -174,6 +178,7 @@ export default function SettingsPage() {
         setProvider(data.settings.provider);
         setSpeed(data.settings.speed);
         setEmotion(data.settings.emotion);
+        setExpressiveness(data.settings.expressiveness ?? 0.7);
         setVoiceGender(data.settings.voiceGender);
         setVoicePrompt(data.settings.voicePrompt);
         setCloneMode(data.settings.cloneMode);
@@ -465,6 +470,7 @@ export default function SettingsPage() {
           provider={provider}
           speed={speed}
           emotion={emotion}
+          expressiveness={expressiveness}
           voiceGender={voiceGender}
           voicePrompt={voicePrompt}
           cloneMode={cloneMode}
@@ -482,6 +488,7 @@ export default function SettingsPage() {
           onProviderChange={setProvider}
           onSpeedChange={setSpeed}
           onEmotionChange={setEmotion}
+          onExpressivenessChange={setExpressiveness}
           onVoiceGenderChange={handleVoiceGenderChange}
           onVoicePromptChange={setVoicePrompt}
           onCloneModeChange={setCloneMode}

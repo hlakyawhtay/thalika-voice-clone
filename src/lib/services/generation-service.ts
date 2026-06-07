@@ -1,13 +1,16 @@
-import { localIsoString } from "@/lib/file-utils";
+import { localIsoString, sanitizeFilename } from "@/lib/file-utils";
 import { normalizeBurmeseScript } from "@/lib/burmese-normalizer";
+import { isGenerationCancelledError } from "@/lib/generation-cancellation";
 import { preflightProvider } from "@/lib/provider-capabilities";
 import { getProvider } from "@/lib/providers";
 import { RemoteProviderError } from "@/lib/providers/hf-utils";
-import { createJobId, saveJob } from "@/lib/storage/job-store";
+import { createJobId, clearJobCancellation, getJob, isJobCancellationRequested, saveJob } from "@/lib/storage/job-store";
+import { deleteGenerationState, generationChunkDir, readGenerationState, saveGenerationState } from "@/lib/storage/generation-state-store";
 import { readBurmeseLexicon } from "@/lib/storage/burmese-lexicon-store";
 import { saveScript } from "@/lib/storage/script-store";
 import { getVoiceProfile } from "@/lib/storage/voice-profile-store";
 import type { GenerateVoiceRequest, GenerateVoiceResult, ProviderPreflightResult } from "@/lib/types";
+import { clearJobAbortController, createJobAbortController, isJobRunning } from "./job-runtime";
 
 export class ProviderPreflightError extends Error {
   constructor(public preflight: ProviderPreflightResult) {
@@ -46,6 +49,7 @@ type BaseJob = {
   format: GenerateVoiceRequest["format"];
   speed: GenerateVoiceRequest["speed"];
   emotion: GenerateVoiceRequest["emotion"];
+  expressiveness?: GenerateVoiceRequest["expressiveness"];
   voiceProfileId?: string;
   lexiconRevision?: string;
   normalizationChanges: number;
@@ -58,6 +62,7 @@ interface PreparedGeneration {
   effectiveInput: GenerateVoiceRequest;
   scriptRecord: Awaited<ReturnType<typeof saveScript>>;
   baseJob: BaseJob;
+  outputStem: string;
 }
 
 function providerErrorMessage(error: unknown) {
@@ -121,6 +126,7 @@ async function prepareGeneration(input: GenerateVoiceRequest): Promise<PreparedG
     format: effectiveInput.format,
     speed: effectiveInput.speed,
     emotion: effectiveInput.emotion,
+    expressiveness: effectiveInput.expressiveness,
     voiceProfileId: effectiveInput.voiceProfileId,
     lexiconRevision: effectiveInput.lexiconRevision,
     normalizationChanges,
@@ -128,6 +134,7 @@ async function prepareGeneration(input: GenerateVoiceRequest): Promise<PreparedG
     referenceTranscriptUsed: Boolean(effectiveInput.referenceText?.trim()),
     createdAt
   };
+  const outputStem = sanitizeFilename(`voice_${jobId.replace(/^job_/, "")}`);
 
   await saveJob({
     ...baseJob,
@@ -137,11 +144,43 @@ async function prepareGeneration(input: GenerateVoiceRequest): Promise<PreparedG
     progressMessage: "Preparing audio generation.",
     content: "Generation is in progress."
   });
+  await saveGenerationState({
+    version: 1,
+    effectiveInput,
+    scriptRecord,
+    baseJob,
+    outputStem
+  });
 
-  return { effectiveInput, scriptRecord, baseJob };
+  return { effectiveInput, scriptRecord, baseJob, outputStem };
 }
 
-async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: PreparedGeneration): Promise<GenerationSuccess> {
+async function currentJobProgress(baseJob: BaseJob) {
+  try {
+    return await getJob(baseJob.id);
+  } catch {
+    return undefined;
+  }
+}
+
+async function saveCanceledJob(baseJob: BaseJob) {
+  const current = await currentJobProgress(baseJob);
+  await saveJob({
+    ...baseJob,
+    status: "canceled",
+    error: "Generation canceled.",
+    completedChunks: current?.completedChunks || 0,
+    totalChunks: current?.totalChunks || 0,
+    progressMessage: "Generation canceled.",
+    content: "Generation was canceled before audio output was completed."
+  });
+}
+
+async function runPreparedGeneration(
+  { effectiveInput, scriptRecord, baseJob, outputStem }: PreparedGeneration,
+  resumeExistingChunks = false
+): Promise<GenerationSuccess> {
+  const controller = createJobAbortController(baseJob.id);
   try {
     const provider = getProvider(effectiveInput.provider);
     const audio = await provider.generate({
@@ -149,6 +188,11 @@ async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: 
       jobId: baseJob.id,
       scriptId: scriptRecord.id,
       title: scriptRecord.title,
+      outputStem,
+      chunkDir: generationChunkDir(baseJob.id),
+      resumeExistingChunks,
+      abortSignal: controller.signal,
+      isCancellationRequested: () => isJobCancellationRequested(baseJob.id),
       onProgress: async (progress) => {
         await saveJob({
           ...baseJob,
@@ -168,6 +212,8 @@ async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: 
       createdAt: baseJob.createdAt,
       content: formatJobContent(provider.name, audio)
     });
+    await clearJobCancellation(baseJob.id);
+    await deleteGenerationState(baseJob.id);
 
     return {
       jobId: job.id,
@@ -181,6 +227,13 @@ async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: 
       metadata: audio.metadata
     };
   } catch (error) {
+    if (isGenerationCancelledError(error) || (await isJobCancellationRequested(baseJob.id))) {
+      await saveCanceledJob(baseJob);
+      throw new RemoteProviderError("Voice generation canceled", {
+        publicMessage: "Generation canceled."
+      });
+    }
+
     const specificMessage = providerErrorMessage(error);
     await saveJob({
       ...baseJob,
@@ -193,16 +246,20 @@ async function runPreparedGeneration({ effectiveInput, scriptRecord, baseJob }: 
     throw new RemoteProviderError("Voice generation failed", {
       publicMessage: specificMessage
     });
+  } finally {
+    clearJobAbortController(baseJob.id, controller);
   }
 }
 
 export async function generateVoice(input: GenerateVoiceRequest): Promise<GenerationSuccess> {
   const prepared = await prepareGeneration(input);
+  await clearJobCancellation(prepared.baseJob.id);
   return runPreparedGeneration(prepared);
 }
 
 export async function startGenerationJob(input: GenerateVoiceRequest): Promise<GenerationAccepted> {
   const prepared = await prepareGeneration(input);
+  await clearJobCancellation(prepared.baseJob.id);
 
   void runPreparedGeneration(prepared).catch(() => {
     // runPreparedGeneration persists the failure into the job file.
@@ -216,5 +273,52 @@ export async function startGenerationJob(input: GenerateVoiceRequest): Promise<G
     format: prepared.effectiveInput.format,
     createdAt: prepared.baseJob.createdAt,
     progressMessage: "Preparing audio generation."
+  };
+}
+
+export async function resumeGenerationJob(jobId: string): Promise<GenerationAccepted> {
+  const state = await readGenerationState(jobId);
+  const current = await getJob(jobId);
+
+  if (current.status === "completed") {
+    throw new RemoteProviderError("Job already completed", {
+      publicMessage: "This generation job is already completed."
+    });
+  }
+
+  if (isJobRunning(jobId)) {
+    return {
+      jobId: state.baseJob.id,
+      scriptId: state.scriptRecord.id,
+      status: "generating",
+      provider: state.effectiveInput.provider,
+      format: state.effectiveInput.format,
+      createdAt: state.baseJob.createdAt,
+      progressMessage: current.progressMessage || "Generation is already running."
+    };
+  }
+
+  await clearJobCancellation(jobId);
+  await saveJob({
+    ...state.baseJob,
+    status: "generating",
+    completedChunks: current.completedChunks || 0,
+    totalChunks: current.totalChunks || 0,
+    progressMessage: "Resuming audio generation.",
+    content: "Generation is in progress."
+  });
+
+  void runPreparedGeneration(state, true).catch(() => {
+    // runPreparedGeneration persists the failure into the job file.
+  });
+
+  return {
+    jobId: state.baseJob.id,
+    scriptId: state.scriptRecord.id,
+    status: "generating",
+    provider: state.effectiveInput.provider,
+    format: state.effectiveInput.format,
+    createdAt: state.baseJob.createdAt,
+    progressMessage: "Resuming audio generation."
   };
 }

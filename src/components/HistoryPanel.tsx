@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock3, Download, ExternalLink, Pause, Play, Save, Star, Trash2, Volume2, X } from "lucide-react";
+import { CheckCircle2, Clock3, Download, ExternalLink, Loader2, Pause, Play, RotateCcw, Save, Square, Star, Trash2, Volume2, X } from "lucide-react";
 import { useRef, useState } from "react";
 import type { ListeningReview } from "@/lib/types";
 
@@ -22,7 +22,10 @@ interface HistoryJob {
 interface HistoryPanelProps {
   jobs: HistoryJob[];
   deletingJobId?: string;
+  actionJobId?: string;
   onDelete: (job: HistoryJob) => void;
+  onCancel?: (job: HistoryJob) => void;
+  onRetry?: (job: HistoryJob) => void;
   onReviewSaved?: () => void;
 }
 
@@ -156,7 +159,7 @@ export function HistoryAudioPlayer({ filename }: { filename: string }) {
   );
 }
 
-export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: HistoryPanelProps) {
+export function HistoryPanel({ jobs, deletingJobId, actionJobId, onDelete, onCancel, onRetry, onReviewSaved }: HistoryPanelProps) {
   const [reviewJob, setReviewJob] = useState<HistoryJob | undefined>();
   const [review, setReview] = useState({ speakerSimilarity: 4, burmesePronunciation: 4, naturalness: 4, noise: 4, approval: "review_needed" as "approved" | "review_needed", notes: "" });
   const [reviewError, setReviewError] = useState("");
@@ -219,6 +222,28 @@ export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: H
                 {job.audioFile && (
                   <button type="button" onClick={() => openReview(job)} className="inline-flex items-center gap-1 rounded-md border border-studio-border px-2 py-1 text-xs font-semibold text-studio-text">
                     <Star size={13} /> Review
+                  </button>
+                )}
+                {job.status === "generating" && onCancel && (
+                  <button
+                    type="button"
+                    onClick={() => onCancel(job)}
+                    disabled={actionJobId === job.id}
+                    className="inline-flex items-center gap-1 rounded-md border border-red-300/50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {actionJobId === job.id ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
+                    Cancel
+                  </button>
+                )}
+                {(job.status === "failed" || job.status === "canceled" || job.status === "generating") && onRetry && (
+                  <button
+                    type="button"
+                    onClick={() => onRetry(job)}
+                    disabled={actionJobId === job.id}
+                    className="inline-flex items-center gap-1 rounded-md border border-studio-border px-2 py-1 text-xs font-semibold text-studio-text transition hover:border-studio-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {actionJobId === job.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                    {job.status === "generating" ? "Resume" : "Retry"}
                   </button>
                 )}
                 <button

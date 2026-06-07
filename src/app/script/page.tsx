@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CheckSquare, Copy, FilePenLine, Hash, Loader2, Play, Plus, Save, Settings, Sparkles, Trash2, X } from "lucide-react";
+import { CheckCircle2, CheckSquare, Copy, FilePenLine, Hash, Loader2, Play, Plus, RotateCcw, Save, Settings, Sparkles, Square, Trash2, X } from "lucide-react";
 import { HistoryAudioPlayer } from "@/components/HistoryPanel";
 import { StudioPageShell } from "@/components/StudioPageShell";
 import type { ProviderHealth } from "@/components/VoiceSettings";
@@ -26,6 +26,7 @@ type RewriteStatus = "idle" | "rewriting" | "completed" | "failed";
 type KeySaveStatus = "idle" | "saving" | "saved" | "failed";
 type SaveStatus = "idle" | "saving" | "saved" | "failed";
 type QueueStatus = "idle" | "starting" | "queued" | "failed";
+type DeleteStatus = "idle" | "deleting";
 
 interface RewriteResponse {
   status: "completed" | "failed";
@@ -50,6 +51,7 @@ interface StudioSettingsResponse {
     provider: VoiceProvider;
     speed: number;
     emotion: VoiceEmotion;
+    expressiveness: number;
     voiceGender: VoiceGender;
     voicePrompt: string;
     cloneMode: CloneMode;
@@ -75,7 +77,8 @@ const generationLabels: Record<ScriptGenerationStatus, string> = {
   queued: "queued",
   generating: "generating",
   completed: "completed",
-  failed: "failed"
+  failed: "failed",
+  canceled: "canceled"
 };
 
 const voiceDesignPrompts: Record<VoiceGender, string> = {
@@ -95,6 +98,8 @@ export default function ScriptPage() {
   const [rewriteStatus, setRewriteStatus] = useState<RewriteStatus>("idle");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [queueStatus, setQueueStatus] = useState<QueueStatus>("idle");
+  const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
+  const [chapterActionId, setChapterActionId] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [geminiConfigured, setGeminiConfigured] = useState(false);
   const [maskedGeminiKey, setMaskedGeminiKey] = useState("");
@@ -111,6 +116,7 @@ export default function ScriptPage() {
   const [provider, setProvider] = useState<VoiceProvider>("burmese_production");
   const [speed, setSpeed] = useState(1);
   const [emotion, setEmotion] = useState<VoiceEmotion>("calm");
+  const [expressiveness, setExpressiveness] = useState(0.7);
   const [voiceGender, setVoiceGender] = useState<VoiceGender>("auto");
   const [voicePrompt, setVoicePrompt] = useState(voiceDesignPrompts.auto);
   const [cloneMode, setCloneMode] = useState<CloneMode>("high_fidelity");
@@ -157,6 +163,7 @@ export default function ScriptPage() {
     setProvider(data.settings.provider);
     setSpeed(data.settings.speed);
     setEmotion(data.settings.emotion);
+    setExpressiveness(data.settings.expressiveness ?? 0.7);
     setVoiceGender(data.settings.voiceGender);
     setVoicePrompt(data.settings.voicePrompt);
     setCloneMode(data.settings.cloneMode);
@@ -234,6 +241,8 @@ export default function ScriptPage() {
     const ids = selectedIds.size ? selectedIds : new Set(chapters.map((chapter) => chapter.id));
     return chapters.filter((chapter) => ids.has(chapter.id));
   }, [chapters, selectedIds]);
+
+  const selectedChapters = useMemo(() => chapters.filter((chapter) => selectedIds.has(chapter.id)), [chapters, selectedIds]);
 
   const referenceRequirementError =
     provider === "burmese_production"
@@ -345,6 +354,49 @@ export default function ScriptPage() {
     }
     if (editingId === chapter.id) resetEditor();
     await loadChapters();
+  }
+
+  async function deleteSelectedChapters() {
+    if (selectedChapters.length === 0 || deleteStatus === "deleting") return;
+
+    const previewTitles = selectedChapters
+      .slice(0, 3)
+      .map((chapter) => `"${chapter.title}"`)
+      .join(", ");
+    const remainingCount = selectedChapters.length - 3;
+    const audioCount = selectedChapters.filter((chapter) => chapter.audioFile).length;
+    const confirmed = window.confirm(
+      `Delete ${selectedChapters.length} selected chapter${selectedChapters.length === 1 ? "" : "s"}${audioCount ? ` and ${audioCount} audio file${audioCount === 1 ? "" : "s"}` : ""}?\n\n${previewTitles}${remainingCount > 0 ? `, and ${remainingCount} more` : ""}`
+    );
+    if (!confirmed) return;
+
+    setDeleteStatus("deleting");
+    setQueueError("");
+
+    const deletedIds = new Set<string>();
+    const failures: string[] = [];
+
+    try {
+      await Promise.all(
+        selectedChapters.map(async (chapter) => {
+          const response = await fetch(`/api/scripts/${encodeURIComponent(chapter.id)}`, { method: "DELETE" });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            failures.push(`${chapter.title}: ${data.error || "Could not delete chapter."}`);
+            return;
+          }
+          deletedIds.add(chapter.id);
+        })
+      );
+
+      if (deletedIds.has(editingId)) resetEditor();
+      if (failures.length > 0) {
+        window.alert(`Could not delete ${failures.length} chapter${failures.length === 1 ? "" : "s"}:\n${failures.join("\n")}`);
+      }
+      await loadChapters();
+    } finally {
+      setDeleteStatus("idle");
+    }
   }
 
   async function rewriteScript() {
@@ -482,6 +534,7 @@ export default function ScriptPage() {
             format: "wav",
             speed,
             emotion,
+            expressiveness,
             voiceGender,
             voicePrompt,
             cloneMode,
@@ -502,6 +555,40 @@ export default function ScriptPage() {
     } catch (caught) {
       setQueueStatus("failed");
       setQueueError(caught instanceof Error ? caught.message : "Could not start chapter queue.");
+    }
+  }
+
+  async function cancelChapterGeneration(chapter: ScriptRecord) {
+    if (!chapter.jobId || chapterActionId) return;
+    setChapterActionId(chapter.id);
+    setQueueError("");
+
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(chapter.jobId)}/cancel`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "Could not cancel chapter generation.");
+      await loadChapters();
+    } catch (caught) {
+      setQueueError(caught instanceof Error ? caught.message : "Could not cancel chapter generation.");
+    } finally {
+      setChapterActionId("");
+    }
+  }
+
+  async function retryChapterGeneration(chapter: ScriptRecord) {
+    if (!chapter.jobId || chapterActionId) return;
+    setChapterActionId(chapter.id);
+    setQueueError("");
+
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(chapter.jobId)}/retry`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || data.status === "failed") throw new Error(data.message || data.error || "Could not resume chapter generation.");
+      await loadChapters();
+    } catch (caught) {
+      setQueueError(caught instanceof Error ? caught.message : "Could not resume chapter generation.");
+    } finally {
+      setChapterActionId("");
     }
   }
 
@@ -822,6 +909,15 @@ export default function ScriptPage() {
               </button>
               <button
                 type="button"
+                disabled={selectedChapters.length === 0 || deleteStatus === "deleting"}
+                onClick={() => void deleteSelectedChapters()}
+                className="inline-flex items-center gap-2 rounded-md border border-red-300/60 px-3 py-2 text-sm font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleteStatus === "deleting" ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                Delete Selected {selectedChapters.length > 0 ? selectedChapters.length : ""}
+              </button>
+              <button
+                type="button"
                 disabled={queueDisabled}
                 onClick={queueChapters}
                 title={queueDisabledReason || "Start audiobook queue"}
@@ -872,7 +968,7 @@ export default function ScriptPage() {
                         className={`rounded-md border px-2 py-1 text-xs ${
                           status === "completed"
                             ? "border-studio-success text-studio-success"
-                            : status === "failed"
+                            : status === "failed" || status === "canceled"
                               ? "border-red-300 text-red-600"
                               : status === "generating" || status === "queued"
                                 ? "border-studio-amber text-studio-amber"
@@ -889,6 +985,28 @@ export default function ScriptPage() {
                       >
                         <FilePenLine size={13} /> Edit
                       </button>
+                      {status === "generating" && chapter.jobId && (
+                        <button
+                          type="button"
+                          onClick={() => void cancelChapterGeneration(chapter)}
+                          disabled={chapterActionId === chapter.id}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-300/50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {chapterActionId === chapter.id ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
+                          Cancel
+                        </button>
+                      )}
+                      {(status === "failed" || status === "canceled" || status === "generating") && chapter.jobId && (
+                        <button
+                          type="button"
+                          onClick={() => void retryChapterGeneration(chapter)}
+                          disabled={chapterActionId === chapter.id}
+                          className="inline-flex items-center gap-1 rounded-md border border-studio-border px-2 py-1 text-xs font-semibold text-studio-text transition hover:border-studio-accent disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {chapterActionId === chapter.id ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+                          {status === "generating" ? "Resume" : "Retry"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => void deleteChapter(chapter)}
@@ -898,8 +1016,8 @@ export default function ScriptPage() {
                       </button>
                     </div>
 
-                    {(status === "queued" || status === "generating" || status === "failed") && (
-                      <p className={status === "failed" ? "text-xs text-red-600" : "text-xs text-studio-muted"}>
+                    {(status === "queued" || status === "generating" || status === "failed" || status === "canceled") && (
+                      <p className={status === "failed" || status === "canceled" ? "text-xs text-red-600" : "text-xs text-studio-muted"}>
                         {chapter.error || chapter.progressMessage || "Waiting for progress."}
                       </p>
                     )}
@@ -946,24 +1064,24 @@ export default function ScriptPage() {
             <div className="grid gap-2">
               {lexiconEntries.length === 0 && <p className="text-sm text-studio-muted">Add replacements such as အံ့သြ to အံအော.</p>}
               {lexiconEntries.map((entry, index) => (
-                <div key={`${entry.source}-${index}`} className="studio-control-bg grid gap-2 rounded-lg border border-studio-border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                <div key={`wordlist-entry-${index}`} className="studio-control-bg grid gap-2 rounded-lg border border-studio-border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
                   <input
                     value={entry.source}
                     onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, source: event.target.value } : item)))}
                     placeholder="Source word"
-                    className="rounded-xl border border-studio-border px-2 py-2 text-sm"
+                    className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent"
                   />
                   <input
                     value={entry.spoken}
                     onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, spoken: event.target.value } : item)))}
                     placeholder="Readable text"
-                    className="rounded-xl border border-studio-border px-2 py-2 text-sm"
+                    className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent"
                   />
                   <input
                     value={entry.note || ""}
                     onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => (itemIndex === index ? { ...item, note: event.target.value } : item)))}
                     placeholder="Note"
-                    className="rounded-xl border border-studio-border px-2 py-2 text-sm"
+                    className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent"
                   />
                   <button type="button" onClick={() => setLexiconEntries((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="Delete wordlist entry" className="grid h-9 w-9 place-items-center rounded-xl border border-red-200 text-red-600">
                     <Trash2 size={15} />

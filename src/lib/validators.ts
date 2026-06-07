@@ -30,6 +30,7 @@ export const generateRequestSchema = z
     format: z.literal("wav"),
     speed: z.number().min(0.8, "Speed must be at least 0.8").max(1.2, "Speed must be at most 1.2"),
     emotion: z.enum(["neutral", "calm", "energetic", "dramatic"]),
+    expressiveness: z.number().min(0.2, "Expressiveness must be at least 0.2").max(1, "Expressiveness must be at most 1.0").optional(),
     voiceGender: z.enum(["auto", "male", "female"]).optional(),
     voicePrompt: z.string().trim().max(500, "Voice request must be 500 characters or fewer").optional().or(z.literal("")),
     cloneMode: z.enum(["balanced", "high_fidelity"]).optional(),

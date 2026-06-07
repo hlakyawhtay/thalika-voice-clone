@@ -19,6 +19,7 @@ export interface VoiceOverDraft {
   provider?: VoiceProvider;
   speed?: number;
   emotion?: VoiceEmotion;
+  expressiveness?: number;
   voiceGender?: VoiceGender;
   voicePrompt?: string;
   cloneMode?: CloneMode;
@@ -57,6 +58,7 @@ export async function saveVoiceOverDraft(input: VoiceOverDraftInput) {
     provider: hasOwn(input, "provider") ? input.provider : previous?.provider,
     speed: hasOwn(input, "speed") ? input.speed : previous?.speed,
     emotion: hasOwn(input, "emotion") ? input.emotion : previous?.emotion,
+    expressiveness: hasOwn(input, "expressiveness") ? input.expressiveness : previous?.expressiveness,
     voiceGender: hasOwn(input, "voiceGender") ? input.voiceGender : previous?.voiceGender,
     voicePrompt: hasOwn(input, "voicePrompt") ? input.voicePrompt : previous?.voicePrompt,
     cloneMode: hasOwn(input, "cloneMode") ? input.cloneMode : previous?.cloneMode,

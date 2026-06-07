@@ -1,3 +1,5 @@
+import { GenerationCancelledError } from "../generation-cancellation";
+
 export type RetryableStatus = 429 | 503;
 
 export class TimeoutError extends Error {
@@ -44,6 +46,14 @@ export function getHFHeaders(headers: HeadersInit = {}): HeadersInit {
 export async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = getHFRequestTimeout()) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = init.signal;
+  const abortFromExternalSignal = () => controller.abort();
+
+  if (externalSignal?.aborted) {
+    throw new GenerationCancelledError();
+  }
+
+  externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
 
   try {
     return await fetch(url, {
@@ -52,17 +62,27 @@ export async function fetchWithTimeout(url: string, init: RequestInit = {}, time
     });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      if (externalSignal?.aborted) throw new GenerationCancelledError();
       throw new TimeoutError();
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
   }
 }
 
 export async function fetchTextWithTimeout(url: string, init: RequestInit = {}, timeoutMs = getHFInferenceTimeout()) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = init.signal;
+  const abortFromExternalSignal = () => controller.abort();
+
+  if (externalSignal?.aborted) {
+    throw new GenerationCancelledError();
+  }
+
+  externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
 
   try {
     const response = await fetch(url, {
@@ -73,11 +93,13 @@ export async function fetchTextWithTimeout(url: string, init: RequestInit = {}, 
     return { response, text };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
+      if (externalSignal?.aborted) throw new GenerationCancelledError();
       throw new TimeoutError();
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
   }
 }
 

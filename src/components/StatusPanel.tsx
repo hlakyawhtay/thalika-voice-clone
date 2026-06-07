@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckCircle2, Loader2, Radio, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Radio, RotateCcw, Square, XCircle } from "lucide-react";
 
-export type StudioStatus = "idle" | "saving" | "generating" | "completed" | "failed";
+export type StudioStatus = "idle" | "saving" | "generating" | "completed" | "failed" | "canceled";
 
 interface StatusPanelProps {
   status: StudioStatus;
@@ -11,6 +11,9 @@ interface StatusPanelProps {
   completedChunks?: number;
   totalChunks?: number;
   variant?: "card" | "dock";
+  actionLoading?: boolean;
+  onCancel?: () => void;
+  onRetry?: () => void;
 }
 
 const labels: Record<StudioStatus, string> = {
@@ -18,7 +21,8 @@ const labels: Record<StudioStatus, string> = {
   saving: "Saving script",
   generating: "Generating audio",
   completed: "Completed",
-  failed: "Failed"
+  failed: "Failed",
+  canceled: "Canceled"
 };
 
 export function StatusPanel({
@@ -27,9 +31,12 @@ export function StatusPanel({
   progressMessage,
   completedChunks = 0,
   totalChunks = 0,
-  variant = "card"
+  variant = "card",
+  actionLoading = false,
+  onCancel,
+  onRetry
 }: StatusPanelProps) {
-  const Icon = status === "completed" ? CheckCircle2 : status === "failed" ? XCircle : status === "idle" ? Radio : Loader2;
+  const Icon = status === "completed" ? CheckCircle2 : status === "failed" || status === "canceled" ? XCircle : status === "idle" ? Radio : Loader2;
   const showProgress = status === "generating" && totalChunks > 0;
   const progressPercent = showProgress ? Math.min(100, Math.round((completedChunks / totalChunks) * 100)) : 0;
   const panelClass =
@@ -46,17 +53,41 @@ export function StatusPanel({
           </div>
           <h2 className="text-lg font-semibold text-studio-text">Status</h2>
         </div>
-        <span
-          className={`rounded-md px-3 py-1 text-xs font-semibold ${
-            status === "completed"
-              ? "bg-studio-successBg text-studio-success"
-              : status === "failed"
-                ? "bg-red-50 text-red-700"
-                : "bg-studio-border text-studio-muted"
-          }`}
-        >
-          {labels[status]}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {status === "generating" && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-2 rounded-md border border-red-300/60 px-3 py-1 text-xs font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Square size={13} />}
+              Cancel
+            </button>
+          )}
+          {(status === "failed" || status === "canceled") && onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-2 rounded-md border border-studio-border px-3 py-1 text-xs font-semibold text-studio-text transition hover:border-studio-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+              Retry
+            </button>
+          )}
+          <span
+            className={`rounded-md px-3 py-1 text-xs font-semibold ${
+              status === "completed"
+                ? "bg-studio-successBg text-studio-success"
+                : status === "failed" || status === "canceled"
+                  ? "bg-red-50 text-red-700"
+                  : "bg-studio-border text-studio-muted"
+            }`}
+          >
+            {labels[status]}
+          </span>
+        </div>
       </div>
       <p className="mt-3 text-sm text-studio-muted">
         {status === "idle" && "Waiting for a valid script."}
@@ -64,6 +95,7 @@ export function StatusPanel({
         {status === "generating" && (progressMessage || "Generating audio through the selected provider.")}
         {status === "completed" && "Audio is ready for preview and download."}
         {status === "failed" && (error || "Something went wrong.")}
+        {status === "canceled" && "Generation was canceled. Retry will reuse any completed audio segments."}
       </p>
       {showProgress && (
         <div className="mt-4 grid gap-2">

@@ -35,6 +35,7 @@ const queueSchema = z.object({
     format: z.literal("wav").default("wav"),
     speed: z.number().min(0.8).max(1.2),
     emotion: z.enum(["neutral", "calm", "energetic", "dramatic"]),
+    expressiveness: z.number().min(0.2).max(1).optional(),
     voiceGender: z.enum(["auto", "male", "female"]).optional(),
     voicePrompt: z.string().trim().max(500).optional().or(z.literal("")),
     cloneMode: z.enum(["balanced", "high_fidelity"]).optional(),
@@ -63,6 +64,7 @@ async function buildGenerationRequest(scriptId: string, settings: QueueRequest["
     format: "wav",
     speed: settings.speed,
     emotion: settings.emotion,
+    expressiveness: settings.expressiveness,
     voiceGender: settings.voiceGender,
     voicePrompt: settings.voicePrompt,
     cloneMode: settings.cloneMode,
@@ -120,7 +122,7 @@ async function runQueue(request: QueueRequest) {
           progressMessage: job.progressMessage
         });
 
-        if (job.status === "completed" || job.status === "failed") break;
+        if (job.status === "completed" || job.status === "failed" || job.status === "canceled") break;
         await wait(2000);
       }
     } catch (error) {

@@ -43,6 +43,7 @@ interface VoiceOverDraft {
   provider?: VoiceProvider;
   speed?: number;
   emotion?: VoiceEmotion;
+  expressiveness?: number;
   voiceGender?: VoiceGender;
   voicePrompt?: string;
   cloneMode?: CloneMode;
@@ -102,6 +103,7 @@ export default function Home() {
   const [provider, setProvider] = useState<VoiceProvider>("burmese_production");
   const [speed, setSpeed] = useState(1);
   const [emotion, setEmotion] = useState<VoiceEmotion>("calm");
+  const [expressiveness, setExpressiveness] = useState(0.7);
   const [voiceGender, setVoiceGender] = useState<VoiceGender>("auto");
   const [voicePrompt, setVoicePrompt] = useState(voiceDesignPrompts.auto);
   const [cloneMode, setCloneMode] = useState<CloneMode>("high_fidelity");
@@ -123,6 +125,7 @@ export default function Home() {
   const [normalizationApproved, setNormalizationApproved] = useState(false);
   const [providerHealth, setProviderHealth] = useState<ProviderHealth | undefined>();
   const [providerHealthLoading, setProviderHealthLoading] = useState(false);
+  const [jobActionLoading, setJobActionLoading] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const loadedDraftRef = useRef(false);
   const activePollRef = useRef(0);
@@ -173,6 +176,7 @@ export default function Home() {
         if (data.draft.provider) setProvider(data.draft.provider);
         if (data.draft.speed) setSpeed(data.draft.speed);
         if (data.draft.emotion) setEmotion(data.draft.emotion);
+        if (data.draft.expressiveness) setExpressiveness(data.draft.expressiveness);
         if (data.draft.voiceGender) setVoiceGender(data.draft.voiceGender);
         if (data.draft.voicePrompt !== undefined) setVoicePrompt(data.draft.voicePrompt || voiceDesignPrompts[data.draft.voiceGender || "auto"]);
         if (data.draft.cloneMode) setCloneMode(data.draft.cloneMode);
@@ -251,6 +255,7 @@ export default function Home() {
       provider,
       speed,
       emotion,
+      expressiveness,
       voiceGender,
       voicePrompt,
       cloneMode,
@@ -269,6 +274,7 @@ export default function Home() {
       cloneStrength,
       denoiseReference,
       emotion,
+      expressiveness,
       normalizeText,
       normalization,
       normalizationApproved,
@@ -489,6 +495,13 @@ export default function Home() {
           throw new Error(job.error || "Generation failed");
         }
 
+        if (job.status === "canceled") {
+          clearActiveGenerationJobId(jobId);
+          setError(job.error || "Generation canceled.");
+          setStatus("canceled");
+          return;
+        }
+
         await wait(2000);
       }
     } catch (caught) {
@@ -523,6 +536,7 @@ export default function Home() {
           format: "wav",
           speed,
           emotion,
+          expressiveness,
           voiceGender,
           voicePrompt,
           cloneMode,
@@ -557,6 +571,65 @@ export default function Home() {
       if (activePollRef.current === pollToken) activePollRef.current += 1;
       setError(caught instanceof Error ? caught.message : "Generation failed");
       setStatus("failed");
+    }
+  }
+
+  async function cancelGeneration() {
+    const jobId = generationProgress?.jobId;
+    if (!jobId || jobActionLoading) return;
+
+    setJobActionLoading(true);
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "Could not cancel generation.");
+      activePollRef.current += 1;
+      clearActiveGenerationJobId(jobId);
+      setError("Generation canceled.");
+      setStatus("canceled");
+      setGenerationProgress((progress) =>
+        progress
+          ? {
+              ...progress,
+              message: "Generation canceled."
+            }
+          : progress
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not cancel generation.");
+    } finally {
+      setJobActionLoading(false);
+    }
+  }
+
+  async function retryGeneration() {
+    const jobId = generationProgress?.jobId;
+    if (!jobId || jobActionLoading) return;
+
+    const pollToken = activePollRef.current + 1;
+    activePollRef.current = pollToken;
+    setJobActionLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || data.status === "failed") throw new Error(data.message || data.error || "Could not retry generation.");
+      setStatus("generating");
+      setGenerationProgress({
+        jobId: data.jobId,
+        completedChunks: generationProgress?.completedChunks || 0,
+        totalChunks: generationProgress?.totalChunks || 0,
+        message: data.progressMessage || "Resuming audio generation."
+      });
+      saveActiveGenerationJobId(data.jobId);
+      void pollGenerationJob(data.jobId, pollToken);
+    } catch (caught) {
+      if (activePollRef.current === pollToken) activePollRef.current += 1;
+      setError(caught instanceof Error ? caught.message : "Could not retry generation.");
+      setStatus("failed");
+    } finally {
+      setJobActionLoading(false);
     }
   }
 
@@ -617,6 +690,9 @@ export default function Home() {
               completedChunks={generationProgress?.completedChunks}
               totalChunks={generationProgress?.totalChunks}
               variant="dock"
+              actionLoading={jobActionLoading}
+              onCancel={status === "generating" ? () => void cancelGeneration() : undefined}
+              onRetry={generationProgress?.jobId && (status === "failed" || status === "canceled") ? () => void retryGeneration() : undefined}
             />
           </div>
         )}
@@ -640,6 +716,7 @@ export default function Home() {
               provider={provider}
               speed={speed}
               emotion={emotion}
+              expressiveness={expressiveness}
               voiceGender={voiceGender}
               voicePrompt={voicePrompt}
               cloneMode={cloneMode}
@@ -657,6 +734,7 @@ export default function Home() {
               onProviderChange={setProvider}
               onSpeedChange={setSpeed}
               onEmotionChange={setEmotion}
+              onExpressivenessChange={setExpressiveness}
               onVoiceGenderChange={handleVoiceGenderChange}
               onVoicePromptChange={setVoicePrompt}
               onCloneModeChange={setCloneMode}

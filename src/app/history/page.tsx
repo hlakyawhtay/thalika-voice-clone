@@ -23,6 +23,7 @@ interface HistoryJob {
 export default function HistoryPage() {
   const [jobs, setJobs] = useState<HistoryJob[]>([]);
   const [deletingJobId, setDeletingJobId] = useState<string | undefined>();
+  const [actionJobId, setActionJobId] = useState<string | undefined>();
 
   const loadHistory = useCallback(async () => {
     const response = await fetch("/api/history", { cache: "no-store" });
@@ -64,6 +65,34 @@ export default function HistoryPage() {
     }
   }
 
+  async function cancelHistoryJob(job: HistoryJob) {
+    setActionJobId(job.id);
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(job.id)}/cancel`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.error || "Could not cancel generation");
+      await loadHistory();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not cancel generation");
+    } finally {
+      setActionJobId(undefined);
+    }
+  }
+
+  async function retryHistoryJob(job: HistoryJob) {
+    setActionJobId(job.id);
+    try {
+      const response = await fetch(`/api/history/${encodeURIComponent(job.id)}/retry`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || data.status === "failed") throw new Error(data.message || data.error || "Could not retry generation");
+      await loadHistory();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not retry generation");
+    } finally {
+      setActionJobId(undefined);
+    }
+  }
+
   return (
     <StudioPageShell
       activeTab="history"
@@ -76,7 +105,15 @@ export default function HistoryPage() {
         </span>
       }
     >
-      <HistoryPanel jobs={jobs} deletingJobId={deletingJobId} onDelete={deleteHistoryJob} onReviewSaved={() => void loadHistory()} />
+      <HistoryPanel
+        jobs={jobs}
+        deletingJobId={deletingJobId}
+        actionJobId={actionJobId}
+        onDelete={deleteHistoryJob}
+        onCancel={(job) => void cancelHistoryJob(job)}
+        onRetry={(job) => void retryHistoryJob(job)}
+        onReviewSaved={() => void loadHistory()}
+      />
     </StudioPageShell>
   );
 }

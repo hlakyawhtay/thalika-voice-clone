@@ -25,6 +25,7 @@ interface VoiceSettingsProps {
   provider: VoiceProvider;
   speed: number;
   emotion: VoiceEmotion;
+  expressiveness: number;
   voiceGender: VoiceGender;
   voicePrompt: string;
   cloneMode: CloneMode;
@@ -42,6 +43,7 @@ interface VoiceSettingsProps {
   onProviderChange: (value: VoiceProvider) => void;
   onSpeedChange: (value: number) => void;
   onEmotionChange: (value: VoiceEmotion) => void;
+  onExpressivenessChange: (value: number) => void;
   onVoiceGenderChange: (value: VoiceGender) => void;
   onVoicePromptChange: (value: string) => void;
   onCloneModeChange: (value: CloneMode) => void;
@@ -79,6 +81,7 @@ export function VoiceSettings({
   provider,
   speed,
   emotion,
+  expressiveness,
   voiceGender,
   voicePrompt,
   cloneMode,
@@ -96,6 +99,7 @@ export function VoiceSettings({
   onProviderChange,
   onSpeedChange,
   onEmotionChange,
+  onExpressivenessChange,
   onVoiceGenderChange,
   onVoicePromptChange,
   onCloneModeChange,
@@ -477,6 +481,21 @@ export function VoiceSettings({
                   />
                   <span className="text-xs leading-5">Public VoxCPM2 uses this as pace guidance, not an exact playback-speed transform.</span>
                 </label>
+                <label className="grid gap-3 text-sm font-medium text-studio-muted px-3 py-2">
+                  <span className="flex justify-between">
+                    Expressiveness <span className="text-studio-text">{Math.round(expressiveness * 100)}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="1"
+                    step="0.1"
+                    value={expressiveness}
+                    onChange={(event) => onExpressivenessChange(Number(event.target.value))}
+                    className="accent-studio-accent"
+                  />
+                  <span className="text-xs leading-5">Adds stronger Burmese pitch rise/fall, phrase emphasis, and sentence-ending movement.</span>
+                </label>
               </div>
             </div>
           </details>
@@ -514,10 +533,10 @@ export function VoiceSettings({
             </div>
             <div className="grid gap-2">
               {lexiconEntries.map((entry, index) => (
-                <div key={`${entry.source}-${index}`} className="studio-control-bg grid gap-2 rounded-lg border border-studio-border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-                  <input value={entry.source} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, source: event.target.value } : item))} placeholder="Source" className="rounded-xl border border-studio-border px-2 py-2 text-sm" />
-                  <input value={entry.spoken} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, spoken: event.target.value } : item))} placeholder="Spoken form" className="rounded-xl border border-studio-border px-2 py-2 text-sm" />
-                  <input value={entry.note || ""} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, note: event.target.value } : item))} placeholder="Note" className="rounded-xl border border-studio-border px-2 py-2 text-sm" />
+                <div key={`lexicon-entry-${index}`} className="studio-control-bg grid gap-2 rounded-lg border border-studio-border p-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                  <input value={entry.source} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, source: event.target.value } : item))} placeholder="Source" className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent" />
+                  <input value={entry.spoken} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, spoken: event.target.value } : item))} placeholder="Spoken form" className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent" />
+                  <input value={entry.note || ""} onChange={(event) => setLexiconEntries((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, note: event.target.value } : item))} placeholder="Note" className="rounded-xl border border-studio-border px-2 py-2 text-sm text-studio-text outline-none focus:border-studio-accent" />
                   <button type="button" onClick={() => setLexiconEntries((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label="Delete lexicon entry" className="grid h-9 w-9 place-items-center rounded-xl border border-red-200 text-red-600"><Trash2 size={15} /></button>
                 </div>
               ))}
