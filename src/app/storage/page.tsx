@@ -178,19 +178,13 @@ export default function StoragePage() {
   }
 
   const heroAside = (
-    <div className="studio-card-bg grid gap-2 rounded-[2.1rem] border border-white/10 p-2 sm:grid-cols-3">
-      <div className="studio-soft-chip-bg rounded-[1.25rem] px-3 py-3">
-        <p className="text-xs font-medium text-studio-muted">Files</p>
-        <p className="mt-1 text-lg font-semibold text-studio-text">{totals.files}</p>
-      </div>
-      <div className="studio-soft-chip-bg rounded-[1.25rem] px-3 py-3">
-        <p className="text-xs font-medium text-studio-muted">Mode</p>
-        <p className="mt-1 text-lg font-semibold text-studio-text">{isElectron ? "Desktop" : "Browser"}</p>
-      </div>
-      <div className="studio-soft-chip-bg rounded-[1.25rem] px-3 py-3">
-        <p className="text-xs font-medium text-studio-muted">Access</p>
-        <p className="mt-1 text-lg font-semibold text-studio-text">{isElectron ? "Open" : "Copy"}</p>
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="rounded-md border border-studio-border bg-white px-3 py-2 text-sm font-medium text-studio-text">
+        {totals.files} files
+      </span>
+      <span className="rounded-md border border-studio-border bg-white px-3 py-2 text-sm font-medium text-studio-text">
+        {isElectron ? "Desktop" : "Browser"} access
+      </span>
     </div>
   );
 
@@ -198,14 +192,14 @@ export default function StoragePage() {
     <StudioPageShell
       activeTab="storage"
       badge="Local folder access"
-      title="Folders"
-      description="Review the app-managed local folders for scripts, jobs, audio outputs, and memory without exposing arbitrary files."
+      title="Storage Folders & Settings"
+      description="Monitor local data directories, browse system assets, and perform audio migrations."
       aside={heroAside}
     >
-      <section className="studio-card-bg mb-5 rounded-[2.2rem] border border-white/10 p-5">
+      <section className="studio-card-bg mb-5 rounded-xl border border-studio-border p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-studio-accent/10 text-studio-accent">
               <ArchiveRestore size={19} />
             </div>
             <div>
@@ -219,7 +213,7 @@ export default function StoragePage() {
             type="button"
             onClick={() => void migrateLegacyAudio()}
             disabled={!migration?.pendingFiles || migrationBusy}
-            className="inline-flex items-center gap-2 rounded-2xl bg-studio-accent px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-45"
+            className="inline-flex items-center gap-2 rounded-lg bg-studio-accent px-4 py-2 text-sm font-semibold text-studio-text shadow-lg shadow-studio-border transition hover:bg-studio-accent/85 disabled:cursor-not-allowed disabled:opacity-45"
           >
             <ArchiveRestore size={16} className={migrationBusy ? "animate-spin" : ""} />
             {migrationBusy ? "Migrating" : "Migrate Audio"}
@@ -227,36 +221,36 @@ export default function StoragePage() {
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="studio-soft-chip-bg rounded-2xl border border-white/10 px-4 py-3">
+          <div className="studio-soft-chip-bg rounded-lg border border-studio-border px-4 py-3">
             <p className="text-xs font-medium text-studio-muted">PCM WAV masters</p>
             <p className="mt-1 text-lg font-semibold text-studio-text">{migration?.realPcmWavFiles ?? "..."}</p>
           </div>
-          <div className="studio-soft-chip-bg rounded-2xl border border-white/10 px-4 py-3">
+          <div className="studio-soft-chip-bg rounded-lg border border-studio-border px-4 py-3">
             <p className="text-xs font-medium text-studio-muted">Migration pending</p>
             <p className="mt-1 text-lg font-semibold text-studio-text">{migration?.pendingFiles ?? "..."}</p>
           </div>
-          <div className="studio-soft-chip-bg rounded-2xl border border-white/10 px-4 py-3">
+          <div className="studio-soft-chip-bg rounded-lg border border-studio-border px-4 py-3">
             <p className="text-xs font-medium text-studio-muted">Backup location</p>
             <p className="mt-1 truncate text-sm font-semibold text-studio-text">{migration?.backupDir ?? "Loading..."}</p>
           </div>
         </div>
 
         {migrationMessage && (
-          <p className="mt-4 rounded-2xl bg-studio-accent/10 px-4 py-3 text-sm font-medium text-studio-text">
+          <p className="mt-4 rounded-lg bg-studio-accent/10 px-4 py-3 text-sm font-medium text-studio-text">
             {migrationMessage}
           </p>
         )}
         {(migration?.failures?.length ?? 0) > 0 && (
-          <p className="mt-3 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700">
+          <p className="mt-3 rounded-lg bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700">
             {migration?.failures?.length} file migration{migration?.failures?.length === 1 ? "" : "s"} need manual review.
           </p>
         )}
       </section>
 
-      <section className="studio-card-bg rounded-[2.2rem] border border-white/10 p-5">
+      <section className="studio-card-bg rounded-xl border border-studio-border p-5">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-studio-accent/10 text-studio-accent">
               <FolderOpen size={19} />
             </div>
             <div>
@@ -272,26 +266,26 @@ export default function StoragePage() {
               void loadStorage();
               void loadMigration();
             }}
-            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
+            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-lg border border-studio-border px-4 py-2 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
           >
             <RefreshCcw size={16} className={status === "loading" ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
 
-        {error && <p className="mb-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700">{error}</p>}
-        {openError && <p className="mb-4 rounded-2xl bg-amber-400/15 px-4 py-3 text-sm font-medium text-amber-800">{openError}</p>}
+        {error && <p className="mb-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm font-medium text-red-700">{error}</p>}
+        {openError && <p className="mb-4 rounded-lg bg-studio-warningBg px-4 py-3 text-sm font-medium text-studio-amber">{openError}</p>}
 
         <div className="grid gap-4">
           {(storage?.folders ?? []).map((folder) => {
             const Icon = folderIcons[folder.id] || FolderOpen;
             return (
-              <article key={folder.id} className="studio-nested-card-bg rounded-[2rem] border border-white/10 p-4">
+              <article key={folder.id} className="studio-nested-card-bg rounded-xl border border-studio-border p-4">
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(340px,1fr)] lg:items-start">
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+                        <div className="grid h-10 w-10 place-items-center rounded-lg bg-studio-accent/10 text-studio-accent">
                           <Icon size={18} />
                         </div>
                         <div>
@@ -299,13 +293,13 @@ export default function StoragePage() {
                           <p className="text-sm leading-6 text-studio-muted">{folder.description}</p>
                         </div>
                       </div>
-                      <span className="rounded-full border border-studio-border px-3 py-1 text-xs font-semibold text-studio-muted">
+                      <span className="rounded-md border border-studio-border px-3 py-1 text-xs font-semibold text-studio-muted">
                         {folder.fileCount} files
                       </span>
                     </div>
 
                     <div className="mt-4 grid gap-2 text-sm text-studio-muted">
-                      <p className="break-all rounded-2xl border border-studio-border bg-white/50 px-3 py-2">{folder.path}</p>
+                      <p className="break-all rounded-lg border border-studio-border bg-white/50 px-3 py-2">{folder.path}</p>
                       <p>
                         {folder.totalSizeLabel} total · Latest: {formatDate(folder.latestModifiedAt)}
                       </p>
@@ -315,7 +309,7 @@ export default function StoragePage() {
                       <button
                         type="button"
                         onClick={() => void openFolder(folder)}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-studio-accent px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700"
+                        className="inline-flex items-center gap-2 rounded-lg bg-studio-accent px-4 py-2 text-sm font-semibold text-studio-text shadow-lg shadow-studio-border transition hover:bg-studio-accent/85"
                       >
                         <ExternalLink size={16} />
                         {isElectron ? "Open Folder" : "Copy Path"}
@@ -323,7 +317,7 @@ export default function StoragePage() {
                       <button
                         type="button"
                         onClick={() => void copyPath(folder.path)}
-                        className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
+                        className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-lg border border-studio-border px-4 py-2 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
                       >
                         <Copy size={16} />
                         {copiedPath === folder.path ? "Copied" : "Copy Path"}
@@ -331,14 +325,14 @@ export default function StoragePage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.6rem] border border-studio-border bg-white/45 p-3">
+                  <div className="rounded-xl border border-studio-border bg-white/45 p-3">
                     <p className="mb-3 text-sm font-semibold text-studio-text">Recent files</p>
                     {folder.files.length === 0 ? (
                       <p className="text-sm text-studio-muted">No files yet.</p>
                     ) : (
                       <div className="grid gap-2">
                         {folder.files.map((file) => (
-                          <div key={`${folder.id}-${file.name}`} className="grid gap-1 rounded-2xl bg-white/55 px-3 py-2">
+                          <div key={`${folder.id}-${file.name}`} className="grid gap-1 rounded-lg bg-white/55 px-3 py-2">
                             <div className="flex items-center justify-between gap-3">
                               <span className="truncate text-sm font-semibold text-studio-text">{file.name}</span>
                               <span className="shrink-0 text-xs text-studio-muted">{file.sizeLabel}</span>

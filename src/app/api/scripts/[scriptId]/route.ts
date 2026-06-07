@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { deleteJob } from "@/lib/storage/job-store";
 import { deleteScript, getScriptById, updateScript } from "@/lib/storage/script-store";
 
 export const runtime = "nodejs";
@@ -57,8 +58,15 @@ export async function DELETE(_request: Request, context: { params: Promise<{ scr
   const { scriptId } = await context.params;
 
   try {
+    const script = await getScriptById(scriptId);
+    const deletedJob = script.jobId
+      ? await deleteJob(script.jobId).catch((error) => {
+          if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+          throw error;
+        })
+      : undefined;
     const deleted = await deleteScript(scriptId);
-    return NextResponse.json({ ok: true, deleted });
+    return NextResponse.json({ ok: true, deleted, deletedJob });
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return NextResponse.json({ ok: false, error: "Script not found" }, { status: 404 });

@@ -9,14 +9,14 @@ interface AgentAwarenessPanelProps {
 
 const severityClasses: Record<NonNullable<ProviderPreflightResult["severity"]>, string> = {
   info: "border-studio-border studio-card-bg text-studio-muted",
-  warning: "border-amber-300/45 bg-amber-400/10 text-amber-700",
-  blocked: "border-red-300/45 bg-red-400/10 text-red-700"
+  warning: "border-studio-amber/45 bg-studio-warningBg text-studio-amber",
+  blocked: "border-red-300/45 bg-red-50 text-red-700"
 };
 
 export function AgentAwarenessPanel({ capability, preflight }: AgentAwarenessPanelProps) {
   if (!capability || !preflight) {
     return (
-      <section className="studio-card-bg rounded-[1.6rem] border border-studio-border p-5">
+      <section className="studio-card-bg rounded-xl border border-studio-border p-5">
         <h2 className="text-lg font-semibold text-studio-text">Agent Awareness</h2>
         <p className="mt-3 text-sm text-studio-muted">Checking provider capabilities.</p>
       </section>
@@ -24,13 +24,13 @@ export function AgentAwarenessPanel({ capability, preflight }: AgentAwarenessPan
   }
 
   return (
-    <section className="studio-card-bg rounded-[1.6rem] border border-studio-border p-5">
+    <section className="studio-card-bg rounded-xl border border-studio-border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-studio-text">Agent Awareness</h2>
           <p className="mt-1 text-sm text-studio-muted">What this provider can actually do.</p>
         </div>
-        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${severityClasses[preflight.severity]}`}>
+        <span className={`rounded-md border px-3 py-1 text-xs font-semibold ${severityClasses[preflight.severity]}`}>
           {preflight.severity}
         </span>
       </div>

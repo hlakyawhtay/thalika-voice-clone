@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileText, UploadCloud, WandSparkles } from "lucide-react";
 import { AudioPreview } from "@/components/AudioPreview";
 import { GenerateButton } from "@/components/GenerateButton";
 import { ScriptInput } from "@/components/ScriptInput";
@@ -11,7 +10,6 @@ import { VoiceSettings, type ProviderHealth } from "@/components/VoiceSettings";
 import { NormalizationApprovalPanel } from "@/components/NormalizationApprovalPanel";
 import { analyzeReferenceAudio } from "@/lib/browser-reference-audio";
 import { preflightProvider } from "@/lib/provider-capabilities";
-import { MAX_SCRIPT_CHARACTERS } from "@/lib/script-limits";
 import type {
   CloneMode,
   ProviderPreflightResult,
@@ -355,7 +353,6 @@ export default function Home() {
     const trimmed = script.trim();
     if (!trimmed) return "Script is required.";
     if (trimmed.length < 10) return "Script must be at least 10 characters.";
-    if (trimmed.length > MAX_SCRIPT_CHARACTERS) return `Script must be ${MAX_SCRIPT_CHARACTERS.toLocaleString()} characters or fewer.`;
     return "";
   }, [script]);
 
@@ -597,41 +594,18 @@ export default function Home() {
     (referenceQualityReport?.status === "block" ? "Reference audio quality is blocked. Upload a cleaner voice sample." : "") ||
     (!activePreflight.ok ? activePreflight.message : "");
 
-  const workflowSteps = [
-    { label: "Script", helper: script.trim() ? "Ready" : "Paste text", icon: FileText, active: Boolean(script.trim()) },
-    { label: "Voice", helper: referenceAudio || selectedProfileId ? "Clone" : provider === "voxcpm2" ? "Request" : "Add sample", icon: UploadCloud, active: provider === "voxcpm2" || Boolean(referenceAudio || selectedProfileId) },
-    { label: "Generate", helper: status === "completed" ? "Done" : "Create audio", icon: WandSparkles, active: status === "completed" }
-  ];
   const heroAside = (
-    <div className="grid gap-3">
-      <div className="studio-card-bg grid grid-cols-3 gap-2 rounded-[2.1rem] border border-white/10 p-2">
-        {workflowSteps.map((step) => {
-          const Icon = step.icon;
-          return (
-            <div
-              key={step.label}
-              className={`rounded-[1.25rem] px-3 py-3 ${
-                step.active ? "bg-studio-accent text-slate-950" : "studio-soft-chip-bg text-studio-muted"
-              }`}
-            >
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Icon size={16} />
-                <span>{step.label}</span>
-              </div>
-              <p className={`mt-1 text-xs ${step.active ? "text-slate-800" : "text-studio-muted"}`}>{step.helper}</p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <span className="w-fit rounded-md bg-studio-warningBg px-3 py-2 font-mono text-xs font-bold text-studio-amber">
+      VoxCPM2 - Active
+    </span>
   );
 
   return (
     <StudioPageShell
       activeTab="voiceover"
       badge="Local-first voice generation"
-      title="Voice Over"
-      description="Paste a script, request a voice or add a clean voice reference, generate audio, then review everything locally."
+      title="Voice Over Studio"
+      description="Generate local high-fidelity speech synthesis from scripts."
       aside={heroAside}
     >
         {status !== "idle" && (
@@ -647,7 +621,7 @@ export default function Home() {
           </div>
         )}
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.48fr)]">
           <div className="grid gap-5">
             <ScriptInput
               title={title}

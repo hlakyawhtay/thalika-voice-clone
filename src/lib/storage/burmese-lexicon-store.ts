@@ -7,7 +7,12 @@ interface BurmeseLexiconFile {
   entries: BurmeseLexiconEntry[];
 }
 
-const emptyLexicon: BurmeseLexiconFile = { revision: "builtin", entries: [] };
+const builtinEntries: BurmeseLexiconEntry[] = [
+  { source: "အံ့သြ", spoken: "အံအော", note: "Built-in pronunciation replacement" },
+  { source: "ရိုးအ", spoken: "ရိုးအ,", note: "Built-in pronunciation pause" }
+];
+
+const emptyLexicon: BurmeseLexiconFile = { revision: "builtin", entries: builtinEntries };
 
 export async function readBurmeseLexicon(): Promise<BurmeseLexiconFile> {
   await ensureDataDirs();

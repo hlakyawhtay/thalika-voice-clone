@@ -11,6 +11,7 @@
     "metrics:resources": "node scripts/resource-report.mjs",
     "build": "next build",
     "start": "next start",
+    "test:burmese-numbers": "node scripts/test-burmese-number-words.mjs",
     "lint": "tsc --noEmit --incremental false"
   },
   "dependencies": {

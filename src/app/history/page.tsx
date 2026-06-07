@@ -68,10 +68,10 @@ export default function HistoryPage() {
     <StudioPageShell
       activeTab="history"
       badge="Local Markdown history"
-      title="History"
-      description="Review generated voice files, open saved audio, or delete old jobs from local storage."
+      title="Generation History"
+      description="Review and manage your local voice cloning runs."
       aside={
-        <span className="studio-card-bg justify-self-start rounded-full border border-white/10 px-4 py-2 text-sm font-medium text-studio-text lg:justify-self-end">
+        <span className="w-fit rounded-md border border-studio-border bg-white px-3 py-2 text-sm font-medium text-studio-text">
           {jobs.length} recent
         </span>
       }

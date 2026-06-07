@@ -4,7 +4,6 @@ import {
   GEMINI_REWRITE_MODELS,
   type GeminiRewriteModel
 } from "@/lib/script-rewrite";
-import { MAX_SCRIPT_CHARACTERS } from "@/lib/script-limits";
 import { getGeminiApiKey } from "@/lib/storage/env-store";
 
 export const runtime = "nodejs";
@@ -14,8 +13,7 @@ const requestSchema = z.object({
   script: z
     .string()
     .trim()
-    .min(10, "Script must be at least 10 characters")
-    .max(MAX_SCRIPT_CHARACTERS, `Script must be ${MAX_SCRIPT_CHARACTERS.toLocaleString()} characters or fewer`),
+    .min(10, "Script must be at least 10 characters"),
   model: z.enum(GEMINI_REWRITE_MODELS.map((item) => item.id) as [GeminiRewriteModel, ...GeminiRewriteModel[]]),
   keepBurmese: z.boolean().optional()
 });
@@ -62,14 +60,55 @@ async function fetchGeminiWithTimeout(url: string, init: RequestInit) {
   }
 }
 
-function buildPrompt(input: z.infer<typeof requestSchema>) {
+const GEMINI_REWRITE_CHUNK_CHARACTERS = 12000;
+
+function splitRewriteInput(script: string) {
+  const normalized = script.replace(/\r\n/g, "\n").trim();
+  if (normalized.length <= GEMINI_REWRITE_CHUNK_CHARACTERS) return [normalized];
+
+  const pieces = normalized
+    .split(/(\n{2,}|(?<=[။၊.!?])\s+)/)
+    .map((piece) => piece.trim())
+    .filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const piece of pieces) {
+    const candidate = current ? `${current}\n\n${piece}` : piece;
+    if (candidate.length <= GEMINI_REWRITE_CHUNK_CHARACTERS) {
+      current = candidate;
+      continue;
+    }
+    if (current) chunks.push(current);
+
+    if (piece.length <= GEMINI_REWRITE_CHUNK_CHARACTERS) {
+      current = piece;
+      continue;
+    }
+
+    for (let start = 0; start < piece.length; start += GEMINI_REWRITE_CHUNK_CHARACTERS) {
+      chunks.push(piece.slice(start, start + GEMINI_REWRITE_CHUNK_CHARACTERS).trim());
+    }
+    current = "";
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function buildPrompt(input: z.infer<typeof requestSchema>, script: string, chunkIndex: number, chunkCount: number) {
   const languageInstruction = input.keepBurmese ?? true
     ? "Keep the rewritten script in Burmese/Myanmar language. Do not translate it into English."
     : "Keep the original language unless the text clearly asks for another language.";
+  const chunkInstruction =
+    chunkCount > 1
+      ? `This is chapter rewrite segment ${chunkIndex + 1} of ${chunkCount}. Rewrite only this segment and preserve continuity with the surrounding chapter. Do not summarize or skip any content.`
+      : "";
 
   return [
     "You are a senior narration script editor for a professional voice-over studio.",
     "Convert the user's original script into a narration-ready reading script.",
+    chunkInstruction,
     languageInstruction,
     "Do not change the story, category, facts, names, numbers, claims, message, or intent.",
     "Do not add documentary, warm story, brand, social, or any other separate style category.",
@@ -79,23 +118,16 @@ function buildPrompt(input: z.infer<typeof requestSchema>) {
     "Avoid making it much longer than the original. Output only the final narration-ready script.",
     input.title ? `Title context: ${input.title}` : "",
     "Original script:",
-    input.script
+    script
   ]
     .filter(Boolean)
     .join("\n\n");
 }
 
-async function callGemini(input: z.infer<typeof requestSchema>) {
+async function callGeminiChunk(input: z.infer<typeof requestSchema>, script: string, chunkIndex: number, chunkCount: number) {
   const apiKey = await getGeminiApiKey();
   if (!apiKey) {
-    return NextResponse.json(
-      {
-        status: "failed",
-        error: "Gemini API key is not configured.",
-        message: "Add GEMINI_API_KEY to .env.local, then restart the app."
-      },
-      { status: 503 }
-    );
+    throw new Error("Gemini API key is not configured. Add GEMINI_API_KEY to .env.local, then restart the app.");
   }
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(input.model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -106,7 +138,7 @@ async function callGemini(input: z.infer<typeof requestSchema>) {
       contents: [
         {
           role: "user",
-          parts: [{ text: buildPrompt(input) }]
+          parts: [{ text: buildPrompt(input, script, chunkIndex, chunkCount) }]
         }
       ],
       generationConfig: {
@@ -121,41 +153,37 @@ async function callGemini(input: z.infer<typeof requestSchema>) {
   try {
     json = (await response.json()) as GeminiResponse;
   } catch {
-    return NextResponse.json(
-      { status: "failed", error: "Invalid Gemini response.", message: "Gemini returned a response the app could not parse." },
-      { status: 502 }
-    );
+    throw new Error("Gemini returned a response the app could not parse.");
   }
 
   if (!response.ok) {
-    return NextResponse.json(
-      {
-        status: "failed",
-        error: "Gemini script rewrite failed.",
-        message: json.error?.message || "Gemini returned an error."
-      },
-      { status: response.status }
-    );
+    throw new Error(json.error?.message || "Gemini returned an error.");
   }
 
   const rewrittenScript = json.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("").trim();
   if (!rewrittenScript) {
-    return NextResponse.json(
-      {
-        status: "failed",
-        error: "Gemini returned an empty rewrite.",
-        message: "Try a different model or shorten the script."
-      },
-      { status: 502 }
-    );
+    throw new Error("Gemini returned an empty rewrite. Try a different model or shorten this chunk.");
   }
 
+  return rewrittenScript;
+}
+
+async function callGemini(input: z.infer<typeof requestSchema>) {
+  const chunks = splitRewriteInput(input.script);
+  const rewrittenChunks: string[] = [];
+
+  for (const [index, chunk] of chunks.entries()) {
+    rewrittenChunks.push(await callGeminiChunk(input, chunk, index, chunks.length));
+  }
+
+  const rewrittenScript = rewrittenChunks.join("\n\n").trim();
   return NextResponse.json({
     status: "completed",
     title: input.title || "Narration Rewrite",
     originalCharacterCount: input.script.length,
     rewrittenCharacterCount: rewrittenScript.length,
     model: input.model,
+    chunks: chunks.length,
     rewrittenScript
   });
 }

@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { deleteVoiceProfile } from "@/lib/storage/voice-profile-store";
+import { deleteVoiceProfile, getVoiceProfile } from "@/lib/storage/voice-profile-store";
 
 export const runtime = "nodejs";
+
+export async function GET(_request: Request, context: { params: Promise<{ profileId: string }> }) {
+  try {
+    return NextResponse.json(await getVoiceProfile((await context.params).profileId));
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return NextResponse.json({ error: "Voice profile not found" }, { status: 404 });
+    }
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load voice profile" }, { status: 400 });
+  }
+}
 
 export async function DELETE(_request: Request, context: { params: Promise<{ profileId: string }> }) {
   try {

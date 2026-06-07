@@ -35,7 +35,7 @@ function formatTime(seconds: number) {
   return `${minutes}:${remainder}`;
 }
 
-function HistoryAudioPlayer({ filename }: { filename: string }) {
+export function HistoryAudioPlayer({ filename }: { filename: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -72,7 +72,7 @@ function HistoryAudioPlayer({ filename }: { filename: string }) {
   }
 
   return (
-    <div className="studio-control-bg rounded-[1.6rem] border border-white/10 p-3">
+    <div className="studio-control-bg rounded-xl border border-studio-border p-3">
       <audio
         ref={audioRef}
         preload="metadata"
@@ -87,7 +87,7 @@ function HistoryAudioPlayer({ filename }: { filename: string }) {
         <button
           type="button"
           onClick={togglePlayback}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-[1.2rem] bg-studio-accent text-white transition hover:bg-emerald-700"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-studio-accent text-studio-text transition hover:bg-studio-accent/85"
           aria-label={isPlaying ? "Pause audio" : "Play audio"}
         >
           {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
@@ -116,14 +116,14 @@ function HistoryAudioPlayer({ filename }: { filename: string }) {
       </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pl-0 sm:pl-[52px]">
-        <div className="studio-soft-chip-bg flex rounded-full border border-white/10 p-1">
+        <div className="studio-soft-chip-bg flex rounded-md border border-studio-border p-1">
           {[0.8, 1, 1.2].map((rate) => (
             <button
               key={rate}
               type="button"
               onClick={() => changePlaybackRate(rate)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                playbackRate === rate ? "bg-studio-accent text-white" : "text-studio-muted hover:text-studio-text"
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                playbackRate === rate ? "bg-studio-accent text-studio-text" : "text-studio-muted hover:text-studio-text"
               }`}
             >
               {rate.toFixed(1)}x
@@ -135,7 +135,7 @@ function HistoryAudioPlayer({ filename }: { filename: string }) {
           <a
             href={audioUrl}
             download={filename}
-            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-studio-text transition hover:border-studio-accent"
+            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-md border border-studio-border px-3 py-2 text-xs font-semibold text-studio-text transition hover:border-studio-accent"
           >
             <Download size={14} />
             Download
@@ -144,7 +144,7 @@ function HistoryAudioPlayer({ filename }: { filename: string }) {
             href={audioUrl}
             target="_blank"
             rel="noreferrer"
-            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-studio-text transition hover:border-studio-accent"
+            className="studio-soft-chip-bg inline-flex items-center gap-2 rounded-md border border-studio-border px-3 py-2 text-xs font-semibold text-studio-text transition hover:border-studio-accent"
           >
             <ExternalLink size={14} />
             Open
@@ -184,40 +184,40 @@ export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: H
   }
 
   return (
-    <section className="studio-card-bg rounded-[2.2rem] border border-white/10 p-5">
+    <section className="studio-card-bg rounded-xl border border-studio-border p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-studio-accent/10 text-studio-accent">
             <Clock3 size={19} />
           </div>
           <h2 className="text-lg font-semibold text-studio-text">History</h2>
         </div>
-        <span className="studio-soft-chip-bg rounded-full border border-white/10 px-3 py-1 text-sm text-studio-muted">{jobs.length} recent</span>
+        <span className="studio-soft-chip-bg rounded-md border border-studio-border px-3 py-1 text-sm text-studio-muted">{jobs.length} recent</span>
       </div>
       <div className="grid gap-3">
         {jobs.length === 0 && <p className="text-sm text-studio-muted">Generated jobs will appear here.</p>}
         {jobs.map((job) => (
-          <article key={job.id} className="studio-nested-card-bg grid gap-4 rounded-[1.85rem] border border-white/10 p-4 lg:grid-cols-[minmax(220px,0.36fr)_minmax(0,0.64fr)] lg:items-center">
+          <article key={job.id} className="studio-nested-card-bg grid gap-4 rounded-xl border border-studio-border p-4 lg:grid-cols-[minmax(220px,0.36fr)_minmax(0,0.64fr)] lg:items-center">
             <div className="grid gap-3">
               <div className="min-w-0">
                 <h3 className="font-semibold text-studio-text">{job.title}</h3>
                 <p className="mt-1 text-xs text-studio-muted">{job.createdAt}</p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-studio-muted">
-                <span className="studio-soft-chip-bg rounded-full border border-white/10 px-2 py-1">{job.provider}</span>
-                <span className="studio-soft-chip-bg rounded-full border border-white/10 px-2 py-1">{job.emotion}</span>
-                <span className="studio-soft-chip-bg rounded-full border border-white/10 px-2 py-1">{job.format}</span>
+                <span className="studio-soft-chip-bg rounded-md border border-studio-border px-2 py-1">{job.provider}</span>
+                <span className="studio-soft-chip-bg rounded-md border border-studio-border px-2 py-1">{job.emotion}</span>
+                <span className="studio-soft-chip-bg rounded-md border border-studio-border px-2 py-1">{job.format}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-studio-border px-2 py-1 text-xs text-studio-muted">
+                <span className="rounded-md border border-studio-border px-2 py-1 text-xs text-studio-muted">
                   {job.status}
                   {job.status === "generating" && job.totalChunks ? ` ${job.completedChunks || 0}/${job.totalChunks}` : ""}
                 </span>
-                <span className={`rounded-full border px-2 py-1 text-xs ${job.review?.approval === "approved" ? "border-emerald-300 text-emerald-700" : "border-amber-300 text-amber-700"}`}>
+                <span className={`rounded-md border px-2 py-1 text-xs ${job.review?.approval === "approved" ? "border-studio-success text-studio-success" : "border-studio-amber text-studio-amber"}`}>
                   {job.review ? `${job.review.overallScore}/100 ${job.review.approval === "approved" ? "approved" : "review needed"}` : "review needed"}
                 </span>
                 {job.audioFile && (
-                  <button type="button" onClick={() => openReview(job)} className="inline-flex items-center gap-1 rounded-full border border-studio-border px-2 py-1 text-xs font-semibold text-studio-text">
+                  <button type="button" onClick={() => openReview(job)} className="inline-flex items-center gap-1 rounded-md border border-studio-border px-2 py-1 text-xs font-semibold text-studio-text">
                     <Star size={13} /> Review
                   </button>
                 )}
@@ -225,7 +225,7 @@ export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: H
                   type="button"
                   onClick={() => onDelete(job)}
                   disabled={deletingJobId === job.id}
-                  className="inline-flex items-center gap-1 rounded-full border border-red-300/50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border border-red-300/50 px-2 py-1 text-xs font-semibold text-red-600 transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label={`Delete ${job.title}`}
                 >
                   <Trash2 size={13} />
@@ -240,10 +240,10 @@ export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: H
       </div>
       {reviewJob && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/30 px-4 backdrop-blur-sm">
-          <section role="dialog" aria-modal="true" className="studio-card-bg w-full max-w-lg rounded-[2rem] border border-white/10 p-5 shadow-2xl">
+          <section role="dialog" aria-modal="true" className="studio-card-bg w-full max-w-lg rounded-xl border border-studio-border p-5 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div><h2 className="text-lg font-semibold text-studio-text">Listening QA</h2><p className="text-sm text-studio-muted">Score the generated voice after listening.</p></div>
-              <button type="button" onClick={() => setReviewJob(undefined)} aria-label="Close listening QA" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-studio-muted"><X size={16} /></button>
+              <button type="button" onClick={() => setReviewJob(undefined)} aria-label="Close listening QA" className="grid h-9 w-9 place-items-center rounded-xl border border-studio-border text-studio-muted"><X size={16} /></button>
             </div>
             <div className="grid gap-3">
               {([
@@ -257,13 +257,13 @@ export function HistoryPanel({ jobs, deletingJobId, onDelete, onReviewSaved }: H
                   <input type="range" min="1" max="5" step="1" value={review[key]} onChange={(event) => setReview((value) => ({ ...value, [key]: Number(event.target.value) }))} className="accent-studio-accent" />
                 </label>
               ))}
-              <label className="studio-control-bg flex items-center justify-between rounded-2xl border border-white/10 px-3 py-3 text-sm text-studio-muted">
+              <label className="studio-control-bg flex items-center justify-between rounded-lg border border-studio-border px-3 py-3 text-sm text-studio-muted">
                 <span className="inline-flex items-center gap-2"><CheckCircle2 size={15} /> Approve for production</span>
                 <input type="checkbox" checked={review.approval === "approved"} onChange={(event) => setReview((value) => ({ ...value, approval: event.target.checked ? "approved" : "review_needed" }))} className="h-4 w-4 accent-studio-accent" />
               </label>
-              <textarea value={review.notes} onChange={(event) => setReview((value) => ({ ...value, notes: event.target.value }))} maxLength={1000} placeholder="Optional notes..." className="studio-control-bg min-h-20 rounded-2xl border border-white/10 px-3 py-3 text-sm text-studio-text" />
+              <textarea value={review.notes} onChange={(event) => setReview((value) => ({ ...value, notes: event.target.value }))} maxLength={1000} placeholder="Optional notes..." className="studio-control-bg min-h-20 rounded-lg border border-studio-border px-3 py-3 text-sm text-studio-text" />
               {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
-              <button type="button" onClick={() => void saveReview()} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-studio-accent px-4 py-3 text-sm font-semibold text-white"><Save size={15} /> Save Listening QA</button>
+              <button type="button" onClick={() => void saveReview()} className="inline-flex items-center justify-center gap-2 rounded-lg bg-studio-accent px-4 py-3 text-sm font-semibold text-studio-text"><Save size={15} /> Save Listening QA</button>
             </div>
           </section>
         </div>

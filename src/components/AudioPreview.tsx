@@ -15,9 +15,9 @@ interface AudioPreviewProps {
 
 export function AudioPreview({ result }: AudioPreviewProps) {
   return (
-    <section className="studio-card-bg rounded-[2.2rem] border border-white/10 p-5">
+    <section className="studio-card-bg rounded-xl border border-studio-border p-5">
       <div className="flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-2xl bg-studio-accent/10 text-studio-accent">
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-studio-accent/10 text-studio-accent">
           <Volume2 size={19} />
         </div>
         <h2 className="text-lg font-semibold text-studio-text">Audio Preview</h2>
@@ -33,7 +33,7 @@ export function AudioPreview({ result }: AudioPreviewProps) {
           <a
             href={result.audioUrl}
             download={result.filename}
-            className="studio-soft-chip-bg inline-flex items-center justify-center gap-2 rounded-[1.5rem] border border-white/10 px-4 py-3 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
+            className="studio-soft-chip-bg inline-flex items-center justify-center gap-2 rounded-lg border border-studio-border px-4 py-3 text-sm font-semibold text-studio-text transition hover:border-studio-accent"
           >
             <Download size={17} />
             Download Audio

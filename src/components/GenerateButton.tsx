@@ -17,12 +17,12 @@ export function GenerateButton({ disabled, loading, disabledReason, onClick }: G
         disabled={disabled}
         onClick={onClick}
         title={disabled ? disabledReason : undefined}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-[1.6rem] bg-studio-accent px-5 py-4 font-semibold text-white shadow-lg shadow-emerald-100 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-studio-border disabled:text-studio-muted disabled:shadow-none"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-studio-accent px-5 py-4 font-semibold text-studio-text shadow-lg shadow-studio-border transition hover:bg-studio-accent/85 disabled:cursor-not-allowed disabled:bg-studio-border disabled:text-studio-muted disabled:shadow-none"
       >
         <WandSparkles size={18} />
         {loading ? "Generating..." : "Generate Local Audio"}
       </button>
-      {disabled && disabledReason && <p className="px-2 text-sm font-medium text-amber-700">{disabledReason}</p>}
+      {disabled && disabledReason && <p className="px-2 text-sm font-medium text-studio-amber">{disabledReason}</p>}
     </div>
   );
 }

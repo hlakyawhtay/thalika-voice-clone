@@ -92,6 +92,8 @@ async function runQueue(request: QueueRequest) {
     try {
       await updateScriptGenerationState(scriptId, {
         generationStatus: "generating",
+        jobId: undefined,
+        audioFile: undefined,
         error: undefined,
         completedChunks: 0,
         totalChunks: 0,
@@ -152,6 +154,8 @@ export async function POST(request: Request) {
     parsed.data.scriptIds.map((scriptId) =>
       updateScriptGenerationState(scriptId, {
         generationStatus: "queued",
+        jobId: undefined,
+        audioFile: undefined,
         error: undefined,
         completedChunks: 0,
         totalChunks: 0,
